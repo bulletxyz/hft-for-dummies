@@ -43,11 +43,6 @@ pub struct Config {
     pub book_stale_secs: u64,
     /// How slowly the Binance→Bullet price gap (the "basis") is averaged.
     pub basis_halflife_secs: u64,
-
-    /// Allow a key delegated on your *main* account. Off: the bot only trades a
-    /// sub-account, so a bug can never touch the rest of your money.
-    #[serde(default)]
-    pub allow_main_account: bool,
 }
 
 impl Config {

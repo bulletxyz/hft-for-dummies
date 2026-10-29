@@ -79,7 +79,7 @@ fn keygen(path: &PathBuf, network: &str) -> Result<()> {
         path.display()
     );
     println!("Its address: {address}\n");
-    println!("Next: in the Bullet app, delegate a funded sub-account to this address:");
+    println!("Next: open this link to add it as a delegate on your Bullet account:");
     println!("  {}", bullet::delegate_link(network, &address));
     Ok(())
 }

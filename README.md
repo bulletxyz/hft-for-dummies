@@ -10,7 +10,7 @@ watch it get better day by day.
 
 > **Real money warning.** Market making can lose money, fast. The bot starts
 > in **dry run** (no key, no money). Only go live with an amount you are
-> happy to lose, and read [Going live](#going-live-with-10) first.
+> happy to lose, and read [Going live](#going-live) first.
 
 ## What we're building
 
@@ -125,28 +125,35 @@ alone.
 
 Run the tests any time with `cargo test`.
 
-## Going live with $10
+## Going live
 
 Only do this once dry run makes sense to you.
 
 1. **Make a Bullet account** at [app.bullet.xyz](https://app.bullet.xyz) and
-   deposit some USDC.
-2. **Create a sub-account** in the Bullet app and move about **$10 USDC**
-   into it. The bot can only ever touch this sub-account.
-3. **Give the bot a delegate key** for that sub-account. A delegate key can
-   place and cancel orders for the sub-account but can't withdraw anything.
-   Either:
+   deposit about **$20 of USDC**. With the default settings the bot holds at
+   most 0.1 SOL (about $10) plus two resting orders, and $20 covers that at
+   1x leverage. To start with $10, set the account's leverage to 2-3x in the
+   app; the bot's own limits stay the same.
+2. **Give the bot a delegate key.** A delegate key can place and cancel
+   orders for your account but can't withdraw anything, so your funds stay
+   put even if the key leaks. Either:
    - **From the Bullet app:** in
      [Delegate accounts](https://app.bullet.xyz/delegate-accounts), create a
-     delegate on your $10 sub-account, copy its **private** key (base58), and
-     paste it into a new file called `bot.key` in this folder. Or:
+     delegate, copy its **private** key (base58), and paste it into a new
+     file called `bot.key` in this folder. Or:
    - **Let the bot make one:** run `cargo run --release -- keygen`. It writes
-     `bot.key` and prints a link; open it, pick your $10 sub-account, confirm.
+     `bot.key` and prints a link; open it and confirm.
 
    Git ignores `bot.key`. Never share it or commit it.
-4. **Switch off dry run.** In `bot.toml` set `dry_run = false`.
-5. **Run it:** `cargo run --release`. Ctrl-C stops the bot and cancels its
+3. **Switch off dry run.** In `bot.toml` set `dry_run = false`.
+4. **Run it:** `cargo run --release`. Ctrl-C stops the bot and cancels its
    orders.
+
+While it runs, **don't trade SOL-USD by hand on the same account.** The bot
+cancels every SOL-USD order on the account when it starts, stops or
+reconnects, and it counts any SOL-USD position as its own. If the account
+already holds more SOL-USD than `max_position`, the bot refuses to quote
+rather than trade your position down. Other markets are untouched.
 
 What protects you, all in `bot.toml`:
 
@@ -157,7 +164,6 @@ What protects you, all in `bot.toml`:
 - It pulls its quotes when Binance or the Bullet book goes quiet, or the
   connection drops.
 - Orders are post-only: they rest on the book or get rejected, never cross it.
-- The bot refuses a key delegated on your main account.
 
 Stopping the bot (or it crashing) leaves any position open. Check the Bullet
 app after you stop it.

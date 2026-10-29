@@ -6,11 +6,10 @@
 //!
 //! ## Keys and delegation
 //!
-//! The bot never holds your main wallet's key. You generate a fresh key
-//! (`cargo run -- keygen`) and, in the Bullet app, *delegate* trading on one of
-//! your sub-accounts to it. The key can then place and cancel orders on that
-//! sub-account, but can't withdraw. Fund the sub-account with what you're
-//! willing to lose, and that's the most the bot can ever touch.
+//! The bot never holds your wallet's own key. In the Bullet app you add a
+//! *delegate* key to your account (or let `cargo run -- keygen` make one).
+//! A delegate can place and cancel orders for the account, but can't
+//! withdraw. If it ever leaks, your funds stay put.
 
 use std::str::FromStr;
 
@@ -61,15 +60,7 @@ pub async fn connect(config: &Config, bus: Bus) -> Result<Bullet> {
         .context("connecting to Bullet")?;
 
     let account = match signer {
-        Some(signer) => Some(
-            trading_account(
-                client.url(),
-                &config.network,
-                &signer,
-                config.allow_main_account,
-            )
-            .await?,
-        ),
+        Some(signer) => Some(trading_account(client.url(), &config.network, &signer).await?),
         None => None,
     };
     let market_id = client
@@ -287,14 +278,9 @@ fn order_event(update: &OrderUpdateMessage, symbol: &str) -> Option<Event> {
     }
 }
 
-/// The account a delegated key trades. Refuses a key that isn't delegated, and
-/// (unless `allow_main_account`) one delegated on a main account.
-async fn trading_account(
-    rest_url: &str,
-    network: &str,
-    signer: &str,
-    allow_main_account: bool,
-) -> Result<String> {
+/// The account a delegated key trades for. Refuses a key that isn't a delegate:
+/// the bot never runs on a wallet's own key.
+async fn trading_account(rest_url: &str, network: &str, signer: &str) -> Result<String> {
     let http = reqwest::Client::new();
     let resp = http
         .get(format!("{rest_url}/api/v1/delegateOf"))
@@ -311,32 +297,12 @@ async fn trading_account(
             "the key in your key file has address {signer}, and that address isn't a delegate.\n  \
              - Pasted from the Bullet app? Check you copied the PRIVATE key, not the address,\n    \
                and that network = \"{network}\" matches where you created it.\n  \
-             - Made it with keygen? Add it on a sub-account here:\n    {}",
+             - Made it with keygen? Add it as a delegate here:\n    {}",
             delegate_link(network, signer)
         ),
         _ => bail!("checking the delegation failed: HTTP {status}: {body}"),
     };
 
-    if !allow_main_account {
-        let variant: AccountInfo = http
-            .get(format!("{rest_url}/api/v1/account"))
-            .query(&[("address", &account)])
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
-        let is_sub = variant
-            .account_variant
-            .is_some_and(|v| matches!(v.kind.as_str(), "sub" | "sub_v1" | "legacy_sub"));
-        if !is_sub {
-            bail!(
-                "the key is delegated on your MAIN account ({account}). Delegate it on a \
-                 sub-account instead, so the bot can only touch what you put there \
-                 (or set allow_main_account = true if you really mean it)"
-            );
-        }
-    }
     tracing::info!(signer, account, "bullet: key is delegated");
     Ok(account)
 }
@@ -354,15 +320,4 @@ pub fn delegate_link(network: &str, signer: &str) -> String {
 #[derive(Deserialize)]
 struct DelegateOf {
     parent: String,
-}
-
-#[derive(Deserialize)]
-struct AccountInfo {
-    #[serde(rename = "accountVariant")]
-    account_variant: Option<AccountVariant>,
-}
-
-#[derive(Deserialize)]
-struct AccountVariant {
-    kind: String,
 }

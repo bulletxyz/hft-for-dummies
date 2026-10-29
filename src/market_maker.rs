@@ -31,8 +31,8 @@ pub struct MarketMaker {
     next_client_id: u64,
     last_requote: Option<Instant>,
     last_summary: Option<Instant>,
-    /// The loss limit tripped: no more quoting this run.
-    stopped: bool,
+    /// Set when something means we must not quote again this run, and why.
+    stopped: Option<&'static str>,
     /// Why we are (or aren't) quoting; logged when it changes.
     status: &'static str,
 }
@@ -54,7 +54,7 @@ impl MarketMaker {
             next_client_id,
             last_requote: None,
             last_summary: None,
-            stopped: false,
+            stopped: None,
             status: "",
         }
     }
@@ -104,6 +104,19 @@ impl MarketMaker {
                 if *venue != self.inventory.position {
                     tracing::warn!(ours = %self.inventory.position, exchange = %venue, "using the exchange's position");
                     self.inventory.adopt(*venue);
+                }
+                // The bot never holds more than max_position, so a bigger
+                // position was opened by hand. Quoting would trade it down.
+                if venue.abs() > self.config.max_position && self.stopped.is_none() {
+                    tracing::error!(
+                        "this account holds {venue} {}, more than max_position ({}). That isn't the \
+                         bot's position, so it won't trade it. Close it, or raise max_position.",
+                        self.config.symbol,
+                        self.config.max_position
+                    );
+                    self.stopped =
+                        Some("stopped: position bigger than max_position (opened by hand?)");
+                    return self.pull();
                 }
             }
             Event::Reconnecting => {
@@ -188,8 +201,8 @@ impl MarketMaker {
 
     fn wanted_quotes(&self, now: Instant) -> (Quotes, &'static str) {
         let none = Quotes::default();
-        if self.stopped {
-            return (none, "stopped: loss limit hit");
+        if let Some(why) = self.stopped {
+            return (none, why);
         }
         let Some((book, at)) = &self.book else {
             return (none, "waiting for the Bullet order book");
@@ -229,12 +242,12 @@ impl MarketMaker {
             self.inventory.position,
             show(pnl.map(|p| p.round_dp(4)))
         );
-        if !self.stopped && pnl.is_some_and(|p| p <= -self.config.max_loss_usd) {
+        if self.stopped.is_none() && pnl.is_some_and(|p| p <= -self.config.max_loss_usd) {
             tracing::error!(
                 "loss limit of ${} hit: no more quoting this run",
                 self.config.max_loss_usd
             );
-            self.stopped = true;
+            self.stopped = Some("stopped: loss limit hit");
         }
     }
 
@@ -509,6 +522,27 @@ mod tests {
             .collect();
         mm.on_event(&Event::PlaceFailed { client_ids: ids }, now);
         assert_eq!(places(&mm.requote(now)).len(), 2);
+    }
+
+    #[test]
+    fn adopts_a_small_position_from_the_exchange() {
+        let (mut mm, now) = warmed_up();
+        assert!(mm.on_event(&Event::Position(d("1")), now).is_empty());
+        assert_eq!(mm.inventory.position, d("1"));
+        assert!(!mm.requote(now).is_empty(), "still quotes");
+    }
+
+    #[test]
+    fn refuses_to_trade_a_position_opened_by_hand() {
+        // max_position is 2; the account already holds 5 (someone traded by hand).
+        let (mut mm, now) = warmed_up();
+        mm.requote(now);
+        assert_eq!(
+            mm.on_event(&Event::Position(d("5")), now),
+            vec![Intent::CancelAll]
+        );
+        assert!(mm.requote(now).is_empty(), "never sells it down");
+        assert!(mm.requote(now + Duration::from_secs(60)).is_empty());
     }
 
     #[test]
