@@ -45,7 +45,7 @@ pub async fn connect(config: &Config, bus: Bus) -> Result<Bullet> {
     let keypair = if config.dry_run {
         None
     } else {
-        Some(load_key(config)?)
+        Some(crate::key::load(&config.key_file)?)
     };
     let signer = keypair.as_ref().map(Keypair::address);
     let client = Client::builder()
@@ -218,15 +218,6 @@ impl Bullet {
     }
 }
 
-fn load_key(config: &Config) -> Result<Keypair> {
-    Keypair::read_from_file(&config.key_file).with_context(|| {
-        format!(
-            "reading the key file {} (make one with `cargo run -- keygen`)",
-            config.key_file.display()
-        )
-    })
-}
-
 /// Tick size, size step and minimum size for `symbol`.
 async fn market_rules(client: &Client, symbol: &str) -> Result<(Decimal, Decimal, Decimal)> {
     let info = client
@@ -317,8 +308,10 @@ async fn trading_account(
         200 => serde_json::from_str::<DelegateOf>(&body)?.parent,
         // Not a delegate: the API says 404, live servers say 400 "... is not a delegate".
         _ if status == 404 || (status == 400 && body.contains("is not a delegate")) => bail!(
-            "the key {signer} isn't delegated yet.\n  \
-             In the Bullet app go to Delegate accounts and add it on a sub-account:\n  {}",
+            "the key in your key file has address {signer}, and that address isn't a delegate.\n  \
+             - Pasted from the Bullet app? Check you copied the PRIVATE key, not the address,\n    \
+               and that network = \"{network}\" matches where you created it.\n  \
+             - Made it with keygen? Add it on a sub-account here:\n    {}",
             delegate_link(network, signer)
         ),
         _ => bail!("checking the delegation failed: HTTP {status}: {body}"),

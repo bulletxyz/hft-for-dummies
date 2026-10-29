@@ -12,6 +12,7 @@ mod events;
 mod executor;
 mod fair_value;
 mod inventory;
+mod key;
 mod market_maker;
 mod strategy;
 

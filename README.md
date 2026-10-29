@@ -118,6 +118,7 @@ alone.
 | `src/strategy.rs` | Strategy | Where to put the bid and ask: spread, skew, limits |
 | `src/market_maker.rs` | Strategy | The decisions: events in, intents out. No network, fully tested |
 | `src/inventory.rs` | Inventory / state | Position and profit, changed only by fills |
+| `src/key.rs` | | Reads `bot.key`, whatever form you pasted it in |
 | `src/executor.rs` | Executor | Live (real orders) or paper (dry run) |
 | `src/bot.rs` | the loop | Wires it all together |
 | `bot.toml` | | Every setting, with comments |
@@ -132,18 +133,19 @@ Only do this once dry run makes sense to you.
    deposit some USDC.
 2. **Create a sub-account** in the Bullet app and move about **$10 USDC**
    into it. The bot can only ever touch this sub-account.
-3. **Make the bot its own key:**
+3. **Give the bot a delegate key** for that sub-account. A delegate key can
+   place and cancel orders for the sub-account but can't withdraw anything.
+   Either:
+   - **From the Bullet app:** in
+     [Delegate accounts](https://app.bullet.xyz/delegate-accounts), create a
+     delegate on your $10 sub-account, copy its **private** key (base58), and
+     paste it into a new file called `bot.key` in this folder. Or:
+   - **Let the bot make one:** run `cargo run --release -- keygen`. It writes
+     `bot.key` and prints a link; open it, pick your $10 sub-account, confirm.
 
-   ```sh
-   cargo run --release -- keygen
-   ```
-
-   This writes `bot.key` (git ignores it; never share it) and prints a link.
-4. **Delegate to it.** Open the link, pick your $10 sub-account, and confirm.
-   A delegated key can place and cancel orders for that sub-account but
-   can't withdraw anything.
-5. **Switch off dry run.** In `bot.toml` set `dry_run = false`.
-6. **Run it:** `cargo run --release`. Ctrl-C stops the bot and cancels its
+   Git ignores `bot.key`. Never share it or commit it.
+4. **Switch off dry run.** In `bot.toml` set `dry_run = false`.
+5. **Run it:** `cargo run --release`. Ctrl-C stops the bot and cancels its
    orders.
 
 What protects you, all in `bot.toml`:
