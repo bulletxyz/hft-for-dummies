@@ -32,9 +32,14 @@ seconds, the connection is dead: drop it and reconnect.
 
 Why 3 seconds? Long enough that one slow pong isn't a false alarm on a
 datacentre network (the Tokyo server had none), short enough that we don't
-quote on a dead feed for long. On home wifi you may see the odd needless
-reconnect; that's harmless: the bot pulls its quotes, reconnects, and
-carries on. Remember the
+quote on a dead feed for long.
+
+> **Incident: a false alarm.** Testing from a laptop, one connection hit the
+> 3-second limit with nothing wrong: wifi delivered a pong late. The bot
+> pulled its quotes, reconnected and carried on, which is the right outcome
+> for a false alarm. The Tokyo server never had one. *Lesson:* every timeout
+> trades false alarms against reaction time; pick it for where the bot
+> actually runs. Remember the
 stale-price guard pulls our quotes even sooner (after `reference_stale_secs`),
 so we're never quoting blind while we wait.
 
