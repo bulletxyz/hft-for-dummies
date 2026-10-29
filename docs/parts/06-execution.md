@@ -56,6 +56,13 @@ reads the error (`bullet::order_not_found`), removes the order that's gone
 from the request, sends the rest again, and places the replacement as a fresh
 order. The fill itself arrives as an event like any other fill.
 
+> **Incident: the confirmation that beat its request.** After this change,
+> the telemetry's "placed → live on book" row went empty. Bullet's websocket
+> was announcing our new orders *before* the HTTP reply to our own request
+> arrived, and the telemetry only expected them the other way round. *Fix:*
+> match the two in whichever order they come. *Lesson:* once nothing waits,
+> events arrive in orders you didn't plan for.
+
 ## What we measured
 
 Live from a laptop, 5 minutes each, quoting 10 bps wide:
