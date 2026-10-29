@@ -15,6 +15,7 @@ mod inventory;
 mod key;
 mod market_maker;
 mod strategy;
+mod telemetry;
 
 use std::path::PathBuf;
 

@@ -18,9 +18,10 @@ use anyhow::Result;
 use tokio::sync::mpsc;
 
 use crate::config::Config;
-use crate::events::{Bus, Event};
+use crate::events::{Bus, Event, Intent};
 use crate::executor::{Executor, LiveExecutor, PaperExecutor};
 use crate::market_maker::MarketMaker;
+use crate::telemetry::{self, Telemetry};
 use crate::{binance, bullet};
 
 pub async fn run(config_path: &Path) -> Result<()> {
@@ -54,6 +55,10 @@ async fn event_loop(
     mut executor: impl Executor,
     mut events: mpsc::UnboundedReceiver<Event>,
 ) -> Result<()> {
+    let mut telemetry = Telemetry::new();
+    // When the newest market data we've acted on arrived: the "tick" in tick-to-trade.
+    let mut last_tick: Option<Instant> = None;
+
     executor.execute(market_maker.start()).await;
     let result = loop {
         let Some(event) = events.recv().await else {
@@ -62,18 +67,33 @@ async fn event_loop(
         match &event {
             Event::Shutdown => break Ok(()),
             Event::Disconnected(why) => break Err(anyhow::anyhow!("Bullet disconnected: {why}")),
+            Event::Reference { stamp, .. } | Event::Book(_, stamp) => {
+                last_tick = Some(stamp.received_at)
+            }
+            Event::Tick => telemetry.maybe_report(Instant::now()),
             _ => {}
         }
         let now = Instant::now();
+        telemetry.on_event(&event, now);
         executor.on_event(&event);
         let intents = market_maker.on_event(&event, now);
+        let mut decide = now.elapsed();
         executor.execute(intents).await;
 
         // Only quote on the newest information: if more events are already
         // waiting, read them first. A quote based on a price we know is old
         // is a gift to whoever trades against it.
         if events.is_empty() {
-            let intents = market_maker.requote(now);
+            let started = Instant::now();
+            let intents = market_maker.requote(started);
+            let decided = Instant::now();
+            decide += decided - started;
+            telemetry.record(telemetry::DECIDE, decide);
+            if let Some(tick) = last_tick
+                && intents.iter().any(|i| matches!(i, Intent::Place(_)))
+            {
+                telemetry.record(telemetry::TICK_TO_ORDER, decided - tick);
+            }
             executor.execute(intents).await;
         }
     };
@@ -89,6 +109,7 @@ async fn event_loop(
         }
     }
     market_maker.log_summary();
+    tracing::info!("latency this run:\n{}", telemetry.table());
     result
 }
 
