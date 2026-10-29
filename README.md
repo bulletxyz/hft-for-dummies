@@ -112,43 +112,19 @@ Run the tests any time with `cargo test`.
 
 ## Going live
 
-Only do this once dry run makes sense to you.
+1. **Deposit $20 USDC** on [Bullet](https://app.bullet.xyz/trade?r=HFT4DUMMIES)
+   (referral code `HFT4DUMMIES`).
+2. **Make the bot a key:** `cargo run -- keygen`. It writes `bot.key`
+   (git-ignored) and prints a link to
+   [Delegate Accounts](https://app.bullet.xyz/delegate-accounts) with the
+   key filled in: click **Confirm Delegation**. A delegate can trade but
+   never withdraw.
+3. **Set `dry_run = false`** in `bot.toml` and `cargo run`. Two orders appear
+   either side of the price; Ctrl-C cancels them.
 
-1. **Fund a Bullet account with about $20 of USDC.** Open **[app.bullet.xyz/trade?r=HFT4DUMMIES](https://app.bullet.xyz/trade?r=HFT4DUMMIES)**
-   (referral code `HFT4DUMMIES`), connect a Solana wallet (e.g. Phantom),
-   and bridge in about $20 of USDC from Solana. $20 covers the defaults (at
-   most 0.1 SOL held, plus two resting orders) at 1x; with $10, set the
-   account's leverage to 2-3x.
-2. **Give the bot a delegate key.** A delegate key can place and cancel
-   orders for your account but can't withdraw anything, so your funds stay
-   put even if the key leaks.
-
-   ```sh
-   cargo run -- keygen
-   ```
-
-   This writes `bot.key` (git-ignored; never share it) and prints a link to
-   Bullet's Delegate accounts page. Open it, click **Confirm Delegation**,
-   and sign. The private key never leaves your machine. (Already have a
-   delegate key? Paste its private key into `bot.key` instead.)
-3. **Switch off dry run.** In `bot.toml` set `dry_run = false`.
-4. **Run it:** `cargo run`. After the warm-up, two orders appear in
-   the Bullet app either side of the price. Ctrl-C stops the bot and cancels
-   them.
-
-**Don't trade SOL-USD by hand on that account while the bot runs:** it
-cancels every SOL-USD order there and treats any SOL-USD position as its own
-(it refuses to start on one bigger than `max_position`).
-
-What protects you (`bot.toml`):
-
-- `max_position = "0.1"`: never holds more than 0.1 SOL (~$10), long or short.
-- `max_loss_usd = "2"`: stops quoting after a $2 loss.
-- Quotes are pulled when Binance or the Bullet book goes quiet, or the
-  connection drops. Orders are post-only, so they never cross the book.
-
-Stopping the bot, or the loss limit, **doesn't close your position**. Check
-the Bullet app afterwards.
+Limits in `bot.toml`: at most 0.1 SOL held, stops after a $2 loss. Stopping
+doesn't close your position, and the bot cancels any SOL-USD orders you
+place by hand on the same account.
 
 ## Troubleshooting
 
