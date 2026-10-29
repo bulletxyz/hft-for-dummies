@@ -105,7 +105,7 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 |------|------|------|
 | 1 | Introduction: the tick-to-trade loop | — |
 | 2 | Hello World | [guide](docs/parts/02-hello-world.md) · [`part-2`](https://github.com/bulletxyz/hft-for-dummies/tree/part-2) |
-| 3 | Telemetry and latency measurement | coming |
+| 3 | Telemetry and latency measurement | [guide](docs/parts/03-telemetry.md) · [`part-3`](https://github.com/bulletxyz/hft-for-dummies/tree/part-3) |
 | 4 | Colocation on AWS | coming |
 | 5 | Streaming market data | coming |
 | 6 | Order execution | coming |
