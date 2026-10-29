@@ -35,14 +35,27 @@ pub fn connect(symbol: &str, bus: Bus) {
     tokio::spawn(run(url, bus));
 }
 
+/// SOLUSDT's best bid/ask changes many times a second. This long with no
+/// message means the connection is dead even if nothing reported an error
+/// (a wifi blip can leave a socket half-open forever), so reconnect.
+const SILENCE: Duration = Duration::from_secs(10);
+
 async fn run(url: String, bus: Bus) {
     let mut backoff = Duration::from_secs(1);
     loop {
-        match connect_async(&url).await {
-            Ok((mut ws, _)) => {
+        match tokio::time::timeout(SILENCE, connect_async(&url)).await {
+            Ok(Ok((mut ws, _))) => {
                 tracing::info!("binance: connected");
                 backoff = Duration::from_secs(1);
-                while let Some(msg) = ws.next().await {
+                loop {
+                    let msg = match tokio::time::timeout(SILENCE, ws.next()).await {
+                        Ok(Some(msg)) => msg,
+                        Ok(None) => break,
+                        Err(_) => {
+                            tracing::warn!("binance: no data for {}s", SILENCE.as_secs());
+                            break;
+                        }
+                    };
                     match msg {
                         Ok(Message::Text(text)) => match parse(&text) {
                             Ok(event) => {
@@ -61,9 +74,10 @@ async fn run(url: String, bus: Bus) {
                         Ok(_) => {}
                     }
                 }
-                tracing::warn!("binance: disconnected");
+                tracing::warn!("binance: disconnected, reconnecting");
             }
-            Err(e) => tracing::warn!("binance: connect failed: {e}"),
+            Ok(Err(e)) => tracing::warn!("binance: connect failed: {e}"),
+            Err(_) => tracing::warn!("binance: connect timed out"),
         }
         tokio::time::sleep(backoff).await;
         backoff = (backoff * 2).min(Duration::from_secs(30));
