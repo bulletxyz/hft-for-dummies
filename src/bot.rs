@@ -79,6 +79,16 @@ async fn event_loop(
     };
     tracing::info!("shutting down: cancelling our orders");
     executor.execute(market_maker.stop()).await;
+
+    // An order can fill in the instant before our cancel lands. Keep listening
+    // for a moment so the final numbers include those fills.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    while let Ok(Some(event)) = tokio::time::timeout_at(deadline, events.recv()).await {
+        if let Event::Fill(_) = event {
+            market_maker.on_event(&event, Instant::now());
+        }
+    }
+    market_maker.log_summary();
     result
 }
 

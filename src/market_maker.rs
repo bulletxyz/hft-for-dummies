@@ -69,10 +69,12 @@ impl MarketMaker {
         vec![Intent::CancelAll, Intent::SyncPosition]
     }
 
-    /// Last thing before exiting.
+    /// Last thing before exiting: cancel everything, then catch up on any
+    /// fill that landed just before the cancel did.
     pub fn stop(&mut self) -> Vec<Intent> {
-        self.log_summary();
-        self.pull()
+        let mut intents = self.pull();
+        intents.push(Intent::SyncFills);
+        intents
     }
 
     /// Update what we know. Returns intents only when an event demands an
@@ -307,7 +309,7 @@ impl MarketMaker {
         Duration::from_secs(self.config.basis_halflife_secs)
     }
 
-    fn log_summary(&self) {
+    pub fn log_summary(&self) {
         let fair = self.fair.get(Instant::now(), self.reference_stale()).ok();
         tracing::info!(
             "bullet mid {} | fair {} | our bid {} ask {} | position {} | pnl ${} (fees ${})",
@@ -382,6 +384,13 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    #[test]
+    fn shutdown_cancels_everything_then_checks_fills() {
+        let (mut mm, now) = warmed_up();
+        mm.requote(now);
+        assert_eq!(mm.stop(), vec![Intent::CancelAll, Intent::SyncFills]);
     }
 
     #[test]
