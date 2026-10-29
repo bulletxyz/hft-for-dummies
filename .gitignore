@@ -4,3 +4,9 @@
 
 # Your bot's private key. Never commit it.
 *.key
+
+# Terraform state and the deploy SSH key (infra/)
+.terraform/
+*.tfstate*
+.terraform.lock.hcl
+infra/**/.ssh/
