@@ -5,7 +5,7 @@
 //! bid and ask every time either changes, and forward each one to the bot.
 
 use std::str::FromStr;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures_util::{SinkExt, StreamExt};
 use rust_decimal::Decimal;
@@ -31,37 +31,61 @@ struct BookTicker {
 }
 
 /// Start sending `symbol`'s (e.g. "SOLUSDT") best bid/ask from Binance USD-M
-/// futures to `bus`. Runs forever in the background, reconnecting if the
-/// connection drops.
+/// futures to `bus`. Runs forever, reconnecting if the connection drops.
+///
+/// The feed gets its own OS thread with its own small async runtime, so
+/// reading the price never waits behind anything else the bot is doing (like
+/// an order request on the main runtime).
 pub fn connect(symbol: &str, bus: Bus) {
     let url = format!(
         "wss://fstream.binance.com/ws/{}@bookTicker",
         symbol.to_lowercase()
     );
-    tokio::spawn(run(url, bus));
+    std::thread::Builder::new()
+        .name("binance-feed".into())
+        .spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("building the feed's runtime");
+            runtime.block_on(run(url, bus));
+        })
+        .expect("starting the feed thread");
 }
 
-/// SOLUSDT's best bid/ask changes many times a second. This long with no
-/// message means the connection is dead even if nothing reported an error
-/// (a wifi blip can leave a socket half-open forever), so reconnect.
-const SILENCE: Duration = Duration::from_secs(10);
+/// We ping Binance every second. A healthy connection answers within
+/// milliseconds; hearing nothing at all (no prices, no pong) for this long
+/// means it's dead, even if the operating system hasn't noticed: a wifi blip
+/// or a dropped route can leave a socket half-open for minutes.
+const DEAD_AFTER: Duration = Duration::from_secs(3);
 
 async fn run(url: String, bus: Bus) {
     let mut backoff = Duration::from_secs(1);
     loop {
-        match tokio::time::timeout(SILENCE, connect_async(&url)).await {
+        match tokio::time::timeout(DEAD_AFTER, connect_async(&url)).await {
             Ok(Ok((mut ws, _))) => {
                 tracing::info!("binance: connected");
                 backoff = Duration::from_secs(1);
+                let mut ping = tokio::time::interval(Duration::from_secs(1));
+                let mut last_heard = Instant::now();
                 loop {
-                    let msg = match tokio::time::timeout(SILENCE, ws.next()).await {
-                        Ok(Some(msg)) => msg,
-                        Ok(None) => break,
-                        Err(_) => {
-                            tracing::warn!("binance: no data for {}s", SILENCE.as_secs());
-                            break;
+                    let msg = tokio::select! {
+                        msg = ws.next() => match msg {
+                            Some(msg) => msg,
+                            None => break,
+                        },
+                        _ = ping.tick() => {
+                            if last_heard.elapsed() > DEAD_AFTER {
+                                tracing::warn!("binance: nothing heard for {}s", DEAD_AFTER.as_secs());
+                                break;
+                            }
+                            if ws.send(Message::Ping(Vec::new().into())).await.is_err() {
+                                break;
+                            }
+                            continue;
                         }
                     };
+                    last_heard = Instant::now();
                     match msg {
                         Ok(Message::Text(text)) => match parse(&text) {
                             Ok(event) => {
@@ -77,7 +101,7 @@ async fn run(url: String, bus: Bus) {
                             }
                         }
                         Ok(Message::Close(_)) | Err(_) => break,
-                        Ok(_) => {}
+                        Ok(_) => {} // pongs: `last_heard` already updated
                     }
                 }
                 tracing::warn!("binance: disconnected, reconnecting");
