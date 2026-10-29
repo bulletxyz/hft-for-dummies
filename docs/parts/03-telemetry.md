@@ -28,6 +28,56 @@ per hop and logs the table every 30 seconds and on exit:
 that's when you get picked off: the moment the price jumps is exactly when
 everything is busiest. HDR histograms keep both cheaply and accurately.
 
+## The scoreboard
+
+Every part from here on ends with the same benchmark, so you can see what each
+change bought. At exit the bot prints one line:
+
+```text
+SCOREBOARD tick-to-trade p50 … ms p99 … ms | binance→us p50 … ms | queue p99 … ms max … ms | decide p99 … ms | bullet place→accepted p50 … ms | orders …
+```
+
+- **Tick-to-trade** is the headline: from the moment of the Binance trade or
+  book change that moved our price (Binance's own timestamp) to the moment our
+  order request leaves for Bullet. It's everything up to the exchange's door:
+  Binance's own delay, the network, our queue, our decision. All of it is
+  either Binance's or ours to improve.
+- **Queue p99 and max** show jitter: how long events sometimes wait before we
+  even look at them.
+- **Bullet place → accepted** is shown for context but isn't part of the
+  score: once the order has left, the time is the venue's (Part 10 shows how
+  much it can vary).
+
+The benchmark is `bench-live.toml`: the same settings in every part, quoting
+live, requoting often to get plenty of samples. Ten minutes of it:
+
+```sh
+cargo run --release -- run bench-live.toml
+```
+
+## Clocks
+
+Tick-to-trade compares Binance's clock with ours, so ours must be right. Your
+computer keeps time with a quartz crystal, which ticks at a slightly wrong rate
+that changes with temperature: typically tens of parts per million, a few
+seconds a day. Operating systems correct it by asking time servers
+([NTP](https://en.wikipedia.org/wiki/Network_Time_Protocol)) every so often,
+and in between the clock wanders. Laptops are worst: they sleep, change
+networks and correct lazily. Ours was 288 ms behind real time one afternoon
+and 407 ms behind a few hours later.
+
+On a laptop, sync before you measure (and check with `sntp time.apple.com`):
+
+```sh
+sudo sntp -sS time.apple.com    # macOS
+sudo chronyc makestep           # Linux with chrony
+```
+
+Servers run [chrony](https://chrony-project.org/), which corrects continuously
+against a nearby source and keeps the clock within microseconds (Part 4). If
+our clock is behind, some messages would appear to arrive before they were
+sent; the bot counts those and tells you to sync instead of printing nonsense.
+
 ## Try it
 
 ```sh
@@ -69,11 +119,8 @@ Four lessons:
    finish before reading the next event, so every Binance tick that arrives
    meanwhile sits in the queue: p99 of almost 3 seconds. Part 6 fixes that.
 4. **You can't measure one-way network latency with an unsynced clock.** The
-   laptop's clock was 288 ms behind real time, so every message "arrived
-   before it was sent". The bot now spots this and tells you to sync
-   (`sudo sntp -sS time.apple.com` on macOS). Servers keep their clocks well within a
-   millisecond with [chrony](https://chrony-project.org/), which Part 4 sets
-   up.
+   first run was on a laptop 288 ms behind real time, so every message
+   "arrived before it was sent" (see Clocks above).
 
 ## What's next
 
