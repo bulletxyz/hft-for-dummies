@@ -79,6 +79,22 @@ impl LiveExecutor {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum Lane {
+    Orders,
+    Pulls,
+}
+
+/// A batch that starts with "cancel everything" is a pull: it jumps the queue.
+/// What follows it (reading fills or the position) must happen after the
+/// cancel, so it rides along on the same lane.
+fn lane_for(intents: &[Intent]) -> Option<Lane> {
+    match intents.first()? {
+        Intent::CancelAll => Some(Lane::Pulls),
+        _ => Some(Lane::Orders),
+    }
+}
+
 /// A worker task that runs batches one at a time, in the order they arrive.
 fn spawn_lane(
     mut worker: Worker,
@@ -97,16 +113,13 @@ fn spawn_lane(
 
 impl Executor for LiveExecutor {
     fn execute(&mut self, intents: Vec<Intent>) {
-        match intents.first() {
+        match lane_for(&intents) {
             None => {}
-            // A batch that starts with "cancel everything" is a pull: it jumps
-            // the queue. What follows it (reading fills or the position) must
-            // happen after the cancel, so it rides along on the same lane.
-            Some(Intent::CancelAll) => {
+            Some(Lane::Pulls) => {
                 self.pull_count.fetch_add(1, Ordering::SeqCst);
                 let _ = self.pulls.send((Instant::now(), intents));
             }
-            Some(_) => {
+            Some(Lane::Orders) => {
                 let _ = self.orders.send((Instant::now(), intents));
             }
         }
@@ -498,6 +511,31 @@ mod tests {
             panic!("expected a fill")
         };
         assert_eq!(fill.client_id, Some(2));
+    }
+
+    #[test]
+    fn pulls_jump_the_queue_with_what_follows_them() {
+        let bid = Order {
+            side: Side::Buy,
+            price: d("100"),
+            size: d("1"),
+            client_id: 1,
+        };
+        assert_eq!(
+            lane_for(&[Intent::CancelAll, Intent::SyncFills]),
+            Some(Lane::Pulls)
+        );
+        assert_eq!(
+            lane_for(&[Intent::CancelAll, Intent::SyncPosition]),
+            Some(Lane::Pulls)
+        );
+        assert_eq!(lane_for(&[Intent::Place(bid)]), Some(Lane::Orders));
+        assert_eq!(
+            lane_for(&[Intent::Cancel { client_id: 1 }]),
+            Some(Lane::Orders)
+        );
+        assert_eq!(lane_for(&[Intent::SyncFills]), Some(Lane::Orders));
+        assert_eq!(lane_for(&[]), None);
     }
 
     #[tokio::test]
