@@ -36,8 +36,10 @@ pub async fn run(config_path: &Path) -> Result<()> {
     }
 
     let (bus, events) = mpsc::unbounded_channel();
-    binance::connect(&config.binance_symbol, bus.clone());
+    // Bullet first: it takes a second to connect, and Binance ticks queued
+    // meanwhile would show up as fake queueing delay.
     let bullet = bullet::connect(&config, bus.clone()).await?;
+    binance::connect(&config.binance_symbol, bus.clone());
     spawn_timer(bus.clone());
     spawn_ctrl_c(bus.clone());
 

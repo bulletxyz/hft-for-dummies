@@ -40,6 +40,10 @@ pub struct Telemetry {
     hops: BTreeMap<&'static str, Histogram<u64>>,
     /// When each order we placed was sent, until the exchange echoes it.
     placed_at: HashMap<u64, Instant>,
+    /// Messages that arrived "before" the exchange sent them, and by how much
+    /// at worst: our clock is behind theirs, so network numbers are wrong.
+    clock_behind: u64,
+    clock_behind_max_us: u64,
     last_report: Instant,
 }
 
@@ -48,6 +52,8 @@ impl Telemetry {
         Self {
             hops: BTreeMap::new(),
             placed_at: HashMap::new(),
+            clock_behind: 0,
+            clock_behind_max_us: 0,
             last_report: Instant::now(),
         }
     }
@@ -113,10 +119,16 @@ impl Telemetry {
 
     /// Wall-clock gap between the exchange sending and us receiving.
     fn network(&mut self, hop: &'static str, stamp: &Stamp) {
-        if let Some(sent) = stamp.exchange_unix_us {
-            // A negative gap means our clock is behind theirs; count it as ~0.
-            self.record_us(hop, stamp.received_unix_us.saturating_sub(sent));
+        let Some(sent) = stamp.exchange_unix_us else {
+            return;
+        };
+        if stamp.received_unix_us < sent {
+            // Received before it was sent: our clock is behind theirs.
+            self.clock_behind += 1;
+            self.clock_behind_max_us = self.clock_behind_max_us.max(sent - stamp.received_unix_us);
+            return;
         }
+        self.record_us(hop, stamp.received_unix_us - sent);
     }
 
     /// Print the table every [`REPORT_EVERY`].
@@ -146,6 +158,15 @@ impl Telemetry {
                 ms(h.value_at_quantile(0.5)),
                 ms(h.value_at_quantile(0.99)),
                 ms(h.max())
+            );
+        }
+        if self.clock_behind > 0 {
+            let _ = writeln!(
+                out,
+                "  ! {} messages arrived before the exchange sent them: your clock is behind by at least {:.0} ms,\n    \
+                 so the network rows are wrong. Sync it (macOS: sudo sntp -sS time.apple.com; Linux: chrony).",
+                self.clock_behind,
+                self.clock_behind_max_us as f64 / 1000.0
             );
         }
         out
@@ -197,7 +218,7 @@ mod tests {
     }
 
     #[test]
-    fn a_clock_behind_the_exchange_reads_as_zero_not_garbage() {
+    fn a_clock_behind_the_exchange_is_flagged_not_recorded() {
         let mut t = Telemetry::new();
         let now = Instant::now();
         let event = Event::Reference {
@@ -206,7 +227,15 @@ mod tests {
             stamp: stamp(now, 1_000_000, 1_005_000, 1_004_000),
         };
         t.on_event(&event, now);
-        assert!(p50_us(&t, BINANCE_NETWORK) <= 1);
+        assert!(
+            !t.hops.contains_key(BINANCE_NETWORK),
+            "a negative gap is not a latency"
+        );
+        assert!(
+            t.table().contains("your clock is behind by at least 5 ms"),
+            "{}",
+            t.table()
+        );
     }
 
     #[test]
