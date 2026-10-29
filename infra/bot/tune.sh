@@ -1,5 +1,6 @@
 #!/bin/bash
-# Runs on the server. One Linux tuning knob per command, so you can measure
+# Runs on the server. One Linux tuning knob per command (and `reset` to undo
+# them all), so you can measure
 # each on its own (docs/parts/08-linux.md). Cores 1 and 2 are for the bot
 # (feed_core = 1, bot_core = 2 in bot.toml); 0 and 3 are for everything else.
 set -euo pipefail
@@ -42,5 +43,16 @@ case ${1:-status} in
     echo "rebooting..."
     sudo systemctl reboot
     ;;
-  *) echo "usage: tune.sh status|tuned|irqs|coalesce|isolate"; exit 1 ;;
+  reset)
+    # Undo every knob, back to Amazon Linux defaults (reboots if isolated).
+    sudo tuned-adm profile virtual-guest 2>/dev/null || true
+    sudo systemctl enable --now irqbalance
+    sudo ethtool -C "$nic" adaptive-rx on rx-usecs 20 2>/dev/null || true
+    if grep -q isolcpus /proc/cmdline; then
+      sudo grubby --update-kernel=ALL --remove-args="isolcpus nohz_full rcu_nocbs"
+      echo "rebooting..."
+      sudo systemctl reboot
+    fi
+    ;;
+  *) echo "usage: tune.sh status|tuned|irqs|coalesce|isolate|reset"; exit 1 ;;
 esac

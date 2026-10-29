@@ -40,6 +40,7 @@ twice as long.)
 ./infra/bot/deploy.sh tune tuned      # network-latency profile
 ./infra/bot/deploy.sh tune irqs       # network interrupts on core 0 only
 ./infra/bot/deploy.sh tune coalesce   # NIC interrupt batching off
+./infra/bot/deploy.sh tune reset      # undo them all (reboots if isolated)
 ```
 
 - **`isolate`** adds [`isolcpus=1,2 nohz_full=1,2 rcu_nocbs=1,2`](https://docs.kernel.org/admin-guide/kernel-parameters.html)
