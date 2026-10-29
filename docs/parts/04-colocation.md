@@ -91,16 +91,24 @@ One microsecond. Now the network rows in the telemetry are real.
 ```sh
 ./infra/bot/deploy.sh           # create the server, copy the code, build, start
 ./infra/bot/deploy.sh logs      # follow the bot
+./infra/bot/deploy.sh bench     # the Part 3 benchmark, live, on the server
 ./infra/bot/deploy.sh destroy   # stop the bot (it cancels its orders) and delete the server
 ```
 
 [Terraform](https://developer.hashicorp.com/terraform) describes the server in
 `infra/bot/main.tf`; `cloud-init.yaml` installs what the build needs on first
-boot and registers the bot as a service. SSH is open to your IP only, and
-`bot.key` is copied only when `dry_run = false`. A production setup would
-skip SSH for [SSM Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html)
-and keep keys in [Secrets Manager](https://aws.amazon.com/secrets-manager/);
-for learning, SSH is easier to see through.
+boot and registers the bot as a service. SSH is open to your IP only.
+
+**The key never touches the server's disk.** For a live bot, `deploy.sh`
+stores `bot.key` in [SSM Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html)
+as an encrypted `SecureString`. The server's IAM role may read that one
+parameter and nothing else, and each time the bot starts it fetches the key
+into `/run` (memory) where only the bot's user can read it. Compared with
+copying a key file around: it isn't in your code, your server image or your
+backups, access is controlled and logged by AWS, and replacing the key is one
+command. ([Secrets Manager](https://aws.amazon.com/secrets-manager/) does the
+same with automatic rotation, at $0.40 a month per secret; for one key that
+rarely changes, Parameter Store is free and enough.)
 
 ## What we measured
 

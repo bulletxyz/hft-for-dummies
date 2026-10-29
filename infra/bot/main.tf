@@ -55,12 +55,42 @@ resource "aws_security_group" "bot" {
   }
 }
 
+# The trading key lives in SSM Parameter Store (deploy.sh uploads it,
+# encrypted). The server may read that one parameter and nothing else.
+data "aws_caller_identity" "me" {}
+
+resource "aws_iam_role" "bot" {
+  name = "hft-for-dummies"
+  assume_role_policy = jsonencode({
+    Version   = "2012-10-17"
+    Statement = [{ Effect = "Allow", Action = "sts:AssumeRole", Principal = { Service = "ec2.amazonaws.com" } }]
+  })
+}
+
+resource "aws_iam_role_policy" "read_key" {
+  role = aws_iam_role.bot.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "ssm:GetParameter"
+      Resource = "arn:aws:ssm:ap-northeast-1:${data.aws_caller_identity.me.account_id}:parameter/hft-for-dummies/bot-key"
+    }]
+  })
+}
+
+resource "aws_iam_instance_profile" "bot" {
+  name = "hft-for-dummies"
+  role = aws_iam_role.bot.name
+}
+
 resource "aws_instance" "bot" {
   ami                    = data.aws_ssm_parameter.al2023.value
   instance_type          = var.instance_type
   subnet_id              = data.aws_subnet.zone.id
   vpc_security_group_ids = [aws_security_group.bot.id]
   key_name               = aws_key_pair.bot.key_name
+  iam_instance_profile   = aws_iam_instance_profile.bot.name
   user_data              = file("${path.module}/cloud-init.yaml")
   tags                   = { Name = "hft-for-dummies" }
 

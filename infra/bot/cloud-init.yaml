@@ -17,7 +17,16 @@ write_files:
       [Service]
       User=ec2-user
       WorkingDirectory=/home/ec2-user/hft
-      ExecStart=/home/ec2-user/hft/target/release/hft-for-dummies run bot.toml
+      # Which config to run; `deploy.sh bench` switches it for a benchmark.
+      Environment=CONFIG=bot.toml
+      EnvironmentFile=-/home/ec2-user/hft-config
+      # The trading key is kept in SSM Parameter Store, never on disk here:
+      # each start fetches it into /run (memory), readable by this user only.
+      # No key stored (dry run): carry on without it.
+      RuntimeDirectory=hft
+      RuntimeDirectoryMode=0700
+      ExecStartPre=-/bin/sh -c 'aws ssm get-parameter --region ap-northeast-1 --name /hft-for-dummies/bot-key --with-decryption --query Parameter.Value --output text > /run/hft/bot.key && ln -sf /run/hft/bot.key bot.key'
+      ExecStart=/home/ec2-user/hft/target/release/hft-for-dummies run ${CONFIG}
       # Ctrl-C, not kill: the bot cancels its orders on the way out.
       KillSignal=SIGINT
       TimeoutStopSec=30
