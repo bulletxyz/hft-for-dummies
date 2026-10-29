@@ -100,6 +100,13 @@ resource "aws_instance" "bot" {
   }
 }
 
+# A fixed public IP: it survives stop/start, so a venue can whitelist it.
+resource "aws_eip" "bot" {
+  domain   = "vpc"
+  instance = aws_instance.bot.id
+  tags     = { Name = "hft-for-dummies" }
+}
+
 output "ip" {
-  value = aws_instance.bot.public_ip
+  value = aws_eip.bot.public_ip
 }
