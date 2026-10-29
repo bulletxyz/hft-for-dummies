@@ -154,15 +154,22 @@ Only do this once dry run makes sense to you.
    limits stay the same.
 2. **Give the bot a delegate key.** A delegate key can place and cancel
    orders for your account but can't withdraw anything, so your funds stay
-   put even if the key leaks. Either:
-   - **From the Bullet app:** in
-     [Delegate accounts](https://app.bullet.xyz/delegate-accounts), create a
-     delegate, copy its **private** key (base58), and paste it into a new
-     file called `bot.key` in this folder. Or:
-   - **Let the bot make one:** run `cargo run --release -- keygen`. It writes
-     `bot.key` and prints a link; open it and confirm.
+   put even if the key leaks.
 
-   Git ignores `bot.key`. Never share it or commit it.
+   ```sh
+   cargo run --release -- keygen
+   ```
+
+   This writes the key to `bot.key` and prints a link to the app's
+   [Delegate accounts](https://app.bullet.xyz/delegate-accounts) page with
+   its address filled in. Open it (logged in with your wallet), click
+   **Confirm Delegation**, and sign. The new delegate appears in the list.
+   The private key never leaves your computer; only its address goes to
+   Bullet.
+
+   Already have a delegate key, or used the page's **Generate** button? Paste
+   its **private** key (base58) into a file called `bot.key` in this folder
+   instead. Git ignores `bot.key`. Never share it or commit it.
 3. **Switch off dry run.** In `bot.toml` set `dry_run = false`.
 4. **Run it:** `cargo run --release`. After the minute of warm-up you'll see
    `quoting`, and two orders appear in the Bullet app, one either side of

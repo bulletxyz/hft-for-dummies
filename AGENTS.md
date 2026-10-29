@@ -23,8 +23,9 @@ appears.
   Confirm the amount first. Prefer a copy of the config for live
   (`cargo run --release -- run my-live.toml`) so `bot.toml` stays on dry run.
 - **Keys.** Never ask for a private key in the chat, and never print, `cat`,
-  copy, or commit `bot.key`. The user pastes it into the file themselves, or
-  you run `keygen` and hand them the link. Addresses are public and fine.
+  copy, or commit `bot.key`. Prefer `keygen` and hand the user the link to
+  confirm: the secret never leaves their disk. If they bring their own key,
+  they paste it into `bot.key` themselves. Addresses are public and fine.
 - **The Bullet app is the user's.** They create the account, deposit and
   approve delegates there. Ask for their account address so you can check
   things read-only (no key needed; `ADDR` the account, `KEY` the delegate's
