@@ -50,71 +50,42 @@ trades against our old ones. Then fills come back and change our inventory,
 which changes the next quotes. Part 3 measures every hop. p50 is the middle;
 p99 is the tail that gets you picked off.
 
-## Run it (5 minutes, no money)
+## Run it (no money)
 
-**1. Install Rust.** On macOS or Linux, paste this into a terminal and accept
-the defaults:
-
-```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-Then open a new terminal. On Windows, download and run
-[rustup-init.exe](https://rustup.rs) instead. You don't need to pick a Rust
-version: the repo pins one (`rust-toolchain.toml`) and `cargo` fetches it
-the first time.
-
-**2. Get the code.** Fork this repo on GitHub (button top right) so you can
-keep your own changes, then:
+Needs Mac or Linux. If you don't have Rust:
+`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh` (the repo
+pins the version; cargo fetches it).
 
 ```sh
-git clone https://github.com/<your-username>/hft-for-dummies.git
+git clone https://github.com/bulletxyz/hft-for-dummies.git   # or your fork
 cd hft-for-dummies
-```
-
-(Just want to try it? Clone `https://github.com/bulletxyz/hft-for-dummies.git` instead.)
-
-(No git? `brew install git` on macOS, or [git-scm.com](https://git-scm.com).)
-
-**3. Run it.**
-
-```sh
 cargo run --release
 ```
 
-The first build downloads and compiles everything: a couple of minutes. Then
-you'll see something like this (timestamps trimmed):
+The first build takes a couple of minutes. Then, after about a minute of
+warm-up:
 
 ```text
 DRY RUN: watching SOL-USD and logging the quotes we would place. No orders are sent.
-binance: connected
-bullet: connected symbol=SOL-USD tick=0.001 step=0.01 min_size=0.01
 learning the Binance-to-Bullet price gap (takes about a minute)
-...
 quoting
 paper: place side=Buy price=100.556 size=0.05
 paper: place side=Sell price=100.758 size=0.05
 bullet mid 100.656 | fair 100.6573 | our bid 100.556 ask 100.758 | position 0 | pnl $0 (fees $0)
 ```
 
-That's the bot pricing SOL from Binance and quoting either side of it on
-Bullet, on paper. When the real Bullet market trades through one of your
-paper quotes you'll see a `FILL`. Press **Ctrl-C** to stop.
+The bot is pricing SOL off Binance and quoting either side of it on Bullet,
+on paper. `FILL` means the real market traded through a paper quote. Ctrl-C
+stops it. Tweak `bot.toml` (`spread_bps`, `skew_bps`, ...) and run again.
 
-Now open `bot.toml`, change `spread_bps` or `skew_bps`, and run it again.
-
-**Rather have an AI do the setup?** Open this folder in
-[Claude Code](https://claude.com/claude-code) (or another coding agent) and
-ask it to help you run the bot. `AGENTS.md` tells it how, including never to
-go live or handle your keys without you.
+Using a coding agent? Ask it to run the bot; `AGENTS.md` tells it how.
 
 ## How the code is laid out
 
 Everything that happens becomes an **event** on one queue. The **market
-maker** reads events and answers with **intents** ("place this", "cancel
-that"). An **executor** carries the intents out. Each box in the diagram is
-one file, so each part of the series changes one file and leaves the rest
-alone.
+maker** answers events with **intents** ("place this", "cancel that"), and an
+**executor** carries them out. Each part of the series changes one box and
+leaves the rest alone.
 
 | File | Box in the diagram | What it does |
 |------|--------------------|--------------|
@@ -137,21 +108,11 @@ Run the tests any time with `cargo test`.
 
 Only do this once dry run makes sense to you.
 
-1. **Set up a Bullet account with about $20 of USDC.**
-   1. Get a Solana wallet (e.g. [Phantom](https://phantom.com)) holding about
-      **$20 of USDC** on Solana, plus a little SOL for Solana transaction
-      fees.
-   2. Open Bullet with the series' referral link,
-      **[app.bullet.xyz/trade?r=HFT4DUMMIES](https://app.bullet.xyz/trade?r=HFT4DUMMIES)**
-      (code `HFT4DUMMIES`), and connect your wallet. Your wallet's address is
-      your Bullet account.
-   3. Deposit: bridge the USDC from Solana into Bullet in the app. When the
-      balance shows up in Bullet, you're funded.
-
-   Why $20: with the default settings the bot holds at most 0.1 SOL (about
-   $10) plus two resting orders, and $20 covers that at 1x leverage. To start
-   with $10, set the account's leverage to 2-3x in the app; the bot's own
-   limits stay the same.
+1. **Fund a Bullet account with about $20 of USDC.** Open **[app.bullet.xyz/trade?r=HFT4DUMMIES](https://app.bullet.xyz/trade?r=HFT4DUMMIES)**
+   (referral code `HFT4DUMMIES`), connect a Solana wallet (e.g. Phantom),
+   and bridge in about $20 of USDC from Solana. $20 covers the defaults (at
+   most 0.1 SOL held, plus two resting orders) at 1x; with $10, set the
+   account's leverage to 2-3x.
 2. **Give the bot a delegate key.** A delegate key can place and cancel
    orders for your account but can't withdraw anything, so your funds stay
    put even if the key leaks.
@@ -160,46 +121,34 @@ Only do this once dry run makes sense to you.
    cargo run --release -- keygen
    ```
 
-   This writes the key to `bot.key` and prints a link to the app's
-   [Delegate accounts](https://app.bullet.xyz/delegate-accounts) page with
-   its address filled in. Open it (logged in with your wallet), click
-   **Confirm Delegation**, and sign. The new delegate appears in the list.
-   The private key never leaves your computer; only its address goes to
-   Bullet.
-
-   Already have a delegate key, or used the page's **Generate** button? Paste
-   its **private** key (base58) into a file called `bot.key` in this folder
-   instead. Git ignores `bot.key`. Never share it or commit it.
+   This writes `bot.key` (git-ignored; never share it) and prints a link to
+   Bullet's Delegate accounts page. Open it, click **Confirm Delegation**,
+   and sign. The private key never leaves your machine. (Already have a
+   delegate key? Paste its private key into `bot.key` instead.)
 3. **Switch off dry run.** In `bot.toml` set `dry_run = false`.
-4. **Run it:** `cargo run --release`. After the minute of warm-up you'll see
-   `quoting`, and two orders appear in the Bullet app, one either side of
-   the price. Fills show up as `FILL` lines and in the app. Ctrl-C stops the
-   bot and cancels its orders.
+4. **Run it:** `cargo run --release`. After the warm-up, two orders appear in
+   the Bullet app either side of the price. Ctrl-C stops the bot and cancels
+   them.
 
-While it runs, **don't trade SOL-USD by hand on the same account.** The bot
-cancels every SOL-USD order on the account when it starts, stops or
-reconnects, and it counts any SOL-USD position as its own. If the account
-already holds more SOL-USD than `max_position`, the bot refuses to quote
-rather than trade your position down. Other markets are untouched.
+**Don't trade SOL-USD by hand on that account while the bot runs:** it
+cancels every SOL-USD order there and treats any SOL-USD position as its own
+(it refuses to start on one bigger than `max_position`).
 
-What protects you, all in `bot.toml`:
+What protects you (`bot.toml`):
 
-- `max_position = "0.1"`: it never holds more than 0.1 SOL (about $10), long
-  or short.
-- `max_loss_usd = "2"`: after losing $2 in a run it stops quoting. It does
-  **not** close your position. Do that in the Bullet app if you want to.
-- It pulls its quotes when Binance or the Bullet book goes quiet, or the
-  connection drops.
-- Orders are post-only: they rest on the book or get rejected, never cross it.
+- `max_position = "0.1"`: never holds more than 0.1 SOL (~$10), long or short.
+- `max_loss_usd = "2"`: stops quoting after a $2 loss.
+- Quotes are pulled when Binance or the Bullet book goes quiet, or the
+  connection drops. Orders are post-only, so they never cross the book.
 
-Stopping the bot (or it crashing) leaves any position open. Check the Bullet
-app after you stop it.
+Stopping the bot, or the loss limit, **doesn't close your position**. Check
+the Bullet app afterwards.
 
 ## Troubleshooting
 
 | You see | It means |
 |---------|----------|
-| `command not found: cargo` | Rust isn't installed, or you need a new terminal after installing it. |
+| `command not found: cargo` | Install Rust (above), then open a new terminal. |
 | `...that address isn't a delegate` | The key in `bot.key` isn't a delegate on your account yet. Approve it in the Bullet app, check you pasted the **private** key (not the address), and check `network` in `bot.toml`. |
 | `reading the key file bot.key` | There's no `bot.key` in this folder. See Going live, step 2. |
 | `order_size ... is below ...'s minimum` or `must be a multiple of` | Change `order_size` in `bot.toml` to a size the market accepts (SOL-USD: steps of 0.01). |
@@ -210,15 +159,9 @@ app after you stop it.
 
 ## Following along
 
-Each part lands on `master` as one pull request and gets a tag (`part-2`,
-`part-3`, ...). To pull the latest into your fork:
-
-```sh
-git remote add upstream https://github.com/bulletxyz/hft-for-dummies.git   # once
-git pull upstream master
-```
-
-To look at the code as it was at a given part: `git checkout part-3`.
+Each part lands on `master` as one PR, tagged `part-N`. Pull the latest
+(`git pull`, or from `upstream` in a fork), or check out any part with
+`git checkout part-3`.
 
 | Part | Post | Code |
 |------|------|------|
