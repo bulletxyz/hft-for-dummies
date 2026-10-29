@@ -75,6 +75,9 @@ strategies, actor registries).
 ### Rules
 
 - One series part = one PR (several if the part is big), squash-merged and tagged `part-N`.
+  The PR adds `docs/parts/NN-name.md` (what it adds, how to try it, link to
+  `compare/part-(N-1)...part-N`) and links it from the README's series table.
+  The README itself only describes the current bot; part-specific notes go in the guide.
   PR titles are Conventional Commits (`feat(executor): ...`).
 - Write for beginners: plain comments that explain *why*, short files, no clever tricks.
 - `rust_decimal::Decimal` for every price, size and amount.

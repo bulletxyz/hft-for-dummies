@@ -98,13 +98,13 @@ Feeds turn the world into **events**, the market maker answers with
 
 ## Following along
 
-Each part lands on `master` as one PR, tagged `part-N` (`git checkout part-3`
-to see the code as of that post).
+Each part is one PR on `master`, tagged `part-N`, with a short guide in
+[`docs/parts/`](docs/parts/). `git checkout part-N` runs the bot as of that post.
 
-| Part | Post | Code |
+| Part | Post | Guide |
 |------|------|------|
 | 1 | Introduction: the tick-to-trade loop | — |
-| 2 | Hello World | `part-2` |
+| 2 | Hello World | [guide](docs/parts/02-hello-world.md) · [`part-2`](https://github.com/bulletxyz/hft-for-dummies/tree/part-2) |
 | 3 | Telemetry and latency measurement | coming |
 | 4 | Colocation on AWS | coming |
 | 5 | Streaming market data | coming |
