@@ -18,7 +18,7 @@ use anyhow::Result;
 use tokio::sync::mpsc;
 
 use crate::config::Config;
-use crate::events::{Bus, Event, Intent};
+use crate::events::{Bus, Event, Intent, Stamp};
 use crate::executor::{Executor, LiveExecutor, PaperExecutor};
 use crate::market_maker::MarketMaker;
 use crate::telemetry::{self, Telemetry};
@@ -60,6 +60,8 @@ async fn event_loop(
     let mut telemetry = Telemetry::new();
     // When the newest market data we've acted on arrived: the "tick" in tick-to-trade.
     let mut last_tick: Option<Instant> = None;
+    // The newest Binance price: what moves our quotes.
+    let mut last_binance: Option<Stamp> = None;
 
     executor.execute(market_maker.start()).await;
     let result = loop {
@@ -69,9 +71,11 @@ async fn event_loop(
         match &event {
             Event::Shutdown => break Ok(()),
             Event::Disconnected(why) => break Err(anyhow::anyhow!("Bullet disconnected: {why}")),
-            Event::Reference { stamp, .. } | Event::Book(_, stamp) => {
-                last_tick = Some(stamp.received_at)
+            Event::Reference { stamp, .. } => {
+                last_tick = Some(stamp.received_at);
+                last_binance = Some(*stamp);
             }
+            Event::Book(_, stamp) => last_tick = Some(stamp.received_at),
             Event::Tick => telemetry.maybe_report(Instant::now()),
             _ => {}
         }
@@ -96,6 +100,7 @@ async fn event_loop(
             {
                 telemetry.record(telemetry::TICK_TO_ORDER, decided - tick);
             }
+            telemetry.on_decision(&intents, last_binance.as_ref());
             executor.execute(intents).await;
         }
     };
@@ -112,6 +117,7 @@ async fn event_loop(
     }
     market_maker.log_summary();
     tracing::info!("latency this run:\n{}", telemetry.table());
+    tracing::info!("{}", telemetry.scoreboard());
     result
 }
 

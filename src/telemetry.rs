@@ -31,6 +31,10 @@ pub const BULLET_NETWORK: &str = "bullet book: sent → received (network)";
 pub const QUEUE: &str = "bot: received → handled (queue)";
 pub const DECIDE: &str = "bot: decide (update + requote)";
 pub const TICK_TO_ORDER: &str = "bot: tick received → orders sent";
+/// The headline number: from the Binance trade (or book change) that moved our
+/// price to our order request leaving for Bullet. Everything in it is either
+/// Binance's or ours; none of it is Bullet's.
+pub const TICK_TO_TRADE: &str = "TICK-TO-TRADE: Binance match → order sent";
 pub const SUBMIT_PLACE: &str = "bullet: place sent → accepted";
 pub const SUBMIT_CANCEL: &str = "bullet: cancel sent → accepted";
 pub const PLACE_TO_LIVE: &str = "bullet: place sent → live on book (ws)";
@@ -40,6 +44,9 @@ pub struct Telemetry {
     hops: BTreeMap<&'static str, Histogram<u64>>,
     /// When each order we placed was sent, until the exchange echoes it.
     placed_at: HashMap<u64, Instant>,
+    /// For each order we decided to send: when the Binance event that moved
+    /// our price happened (µs since 1970, Binance's clock).
+    triggered_by: HashMap<u64, u64>,
     /// Echoes that arrived before we heard our own request had finished: the
     /// websocket can beat the HTTP response back to us.
     live_at: HashMap<u64, Instant>,
@@ -55,6 +62,7 @@ impl Telemetry {
         Self {
             hops: BTreeMap::new(),
             placed_at: HashMap::new(),
+            triggered_by: HashMap::new(),
             live_at: HashMap::new(),
             clock_behind: 0,
             clock_behind_max_us: 0,
@@ -100,6 +108,7 @@ impl Telemetry {
             } => {
                 let hop = match kind {
                     crate::events::SentKind::Place => {
+                        self.tick_to_trade(client_ids, *started);
                         for id in client_ids {
                             match self.live_at.remove(id) {
                                 Some(live) => self.record(
@@ -130,6 +139,60 @@ impl Telemetry {
         }
     }
 
+    /// The bot decided to send these orders because of the Binance event
+    /// stamped `tick`; remember it until we know when they actually left.
+    pub fn on_decision(&mut self, intents: &[crate::events::Intent], tick: Option<&Stamp>) {
+        let Some(tick) = tick else { return };
+        let Some(matched) = tick.exchange_match_unix_us.or(tick.exchange_unix_us) else {
+            return;
+        };
+        for intent in intents {
+            if let crate::events::Intent::Place(order) = intent {
+                self.triggered_by.insert(order.client_id, matched);
+            }
+        }
+    }
+
+    /// Tick-to-trade for orders whose request started at `started`.
+    fn tick_to_trade(&mut self, client_ids: &[u64], started: Instant) {
+        // When the request started, on the wall clock (to compare with Binance's).
+        let now_us = unix_us();
+        let started_us =
+            now_us.saturating_sub(u64::try_from(started.elapsed().as_micros()).unwrap_or(0));
+        for id in client_ids {
+            let Some(matched) = self.triggered_by.remove(id) else {
+                continue;
+            };
+            if started_us < matched {
+                self.clock_behind += 1;
+                self.clock_behind_max_us = self.clock_behind_max_us.max(matched - started_us);
+            } else {
+                self.record_us(TICK_TO_TRADE, started_us - matched);
+            }
+        }
+    }
+
+    /// One line to compare runs and parts: the series' scoreboard.
+    pub fn scoreboard(&self) -> String {
+        let ms = |hop: &str, q: f64| {
+            self.hops.get(hop).map_or("-".to_string(), |h| {
+                format!("{:.2}", h.value_at_quantile(q) as f64 / 1000.0)
+            })
+        };
+        format!(
+            "SCOREBOARD tick-to-trade p50 {} ms p99 {} ms | binance→us p50 {} ms | \
+             queue p99 {} ms max {} ms | decide p99 {} ms | bullet place→accepted p50 {} ms | orders {}",
+            ms(TICK_TO_TRADE, 0.5),
+            ms(TICK_TO_TRADE, 0.99),
+            ms(BINANCE_NETWORK, 0.5),
+            ms(QUEUE, 0.99),
+            ms(QUEUE, 1.0),
+            ms(DECIDE, 0.99),
+            ms(SUBMIT_PLACE, 0.5),
+            self.hops.get(TICK_TO_TRADE).map_or(0, Histogram::len),
+        )
+    }
+
     /// Wall-clock gap between the exchange sending and us receiving.
     fn network(&mut self, hop: &'static str, stamp: &Stamp) {
         let Some(sent) = stamp.exchange_unix_us else {
@@ -152,6 +215,10 @@ impl Telemetry {
             // Placed orders the exchange never echoed (rejected, or a dry run) would pile up.
             self.placed_at
                 .retain(|_, sent| now.duration_since(*sent) < REPORT_EVERY);
+            // Orders decided but never sent (dry run) would pile up too.
+            if self.triggered_by.len() > 10_000 {
+                self.triggered_by.clear();
+            }
             self.live_at
                 .retain(|_, live| now.duration_since(*live) < REPORT_EVERY);
         }
@@ -186,6 +253,12 @@ impl Telemetry {
         }
         out
     }
+}
+
+fn unix_us() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_micros() as u64)
 }
 
 #[cfg(test)]
@@ -250,6 +323,45 @@ mod tests {
             t.table().contains("your clock is behind by at least 5 ms"),
             "{}",
             t.table()
+        );
+    }
+
+    #[test]
+    fn tick_to_trade_runs_from_binance_match_to_order_sent() {
+        use rust_decimal::Decimal;
+
+        use crate::events::{Intent, Order, Side};
+        let mut t = Telemetry::new();
+        // A Binance trade 5 ms ago moved our price; we sent an order just now.
+        let matched = unix_us() - 5_000;
+        let tick = Stamp {
+            exchange_match_unix_us: Some(matched),
+            ..Stamp::at(Instant::now())
+        };
+        let order = Order {
+            side: Side::Buy,
+            price: Decimal::ONE,
+            size: Decimal::ONE,
+            client_id: 3,
+        };
+        t.on_decision(&[Intent::Place(order)], Some(&tick));
+        let sent = Instant::now();
+        t.on_event(
+            &Event::Sent {
+                kind: SentKind::Place,
+                client_ids: vec![3],
+                started: sent,
+                finished: sent,
+            },
+            sent,
+        );
+        let p50 = p50_us(&t, TICK_TO_TRADE);
+        assert!((5_000..6_000).contains(&p50), "{p50}");
+        assert!(
+            t.scoreboard()
+                .starts_with("SCOREBOARD tick-to-trade p50 5."),
+            "{}",
+            t.scoreboard()
         );
     }
 

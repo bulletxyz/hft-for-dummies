@@ -98,6 +98,11 @@ mod tests {
     }
 
     #[test]
+    fn the_benchmark_config_is_valid() {
+        assert!(!Config::load(Path::new("bench-live.toml")).unwrap().dry_run);
+    }
+
+    #[test]
     fn rejects_an_order_bigger_than_the_position_limit() {
         let mut config = Config::load(Path::new("bot.toml")).unwrap();
         config.order_size = config.max_position + Decimal::ONE;
