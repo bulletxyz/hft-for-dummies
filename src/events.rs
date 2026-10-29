@@ -13,6 +13,7 @@
 //! own: dry run is just a different executor, and later posts move feeds and
 //! the executor onto their own threads without touching the strategy.
 
+use std::sync::Arc;
 use std::time::Instant;
 
 use rust_decimal::Decimal;
@@ -38,7 +39,7 @@ pub enum Event {
         stamp: Stamp,
     },
     /// Bullet's order book changed.
-    Book(Book, Stamp),
+    Book(Arc<Book>, Stamp),
     /// Our copy of the Bullet book is out of sync; don't trust it.
     BookLost,
     /// One of our orders (partly) filled.

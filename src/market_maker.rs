@@ -8,6 +8,7 @@
 //! ask at most. It updates that belief the moment it asks for a change, and
 //! corrects it if the executor reports a failure.
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use rust_decimal::Decimal;
@@ -27,7 +28,7 @@ pub struct MarketMaker {
     /// Bullet's price increment for this market.
     tick: Decimal,
     fair: FairValue,
-    book: Option<(Book, Instant)>,
+    book: Option<(Arc<Book>, Instant)>,
     bid: Option<Order>,
     ask: Option<Order>,
     /// When we asked for the resting bid and ask; they expire `quote_ttl_secs` later.
@@ -99,7 +100,7 @@ impl MarketMaker {
                     );
                     self.inventory.mark(mid);
                 }
-                self.book = Some((book.clone(), now));
+                self.book = Some((Arc::clone(book), now));
             }
             Event::BookLost => self.book = None,
             Event::Fill(fill) => self.on_fill(fill),
@@ -391,7 +392,7 @@ mod tests {
                 },
                 t,
             );
-            mm.on_event(&Event::Book(book.clone(), Stamp::at(t)), t);
+            mm.on_event(&Event::Book(Arc::new(book.clone()), Stamp::at(t)), t);
         }
         (mm, start + WARMUP)
     }
