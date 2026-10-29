@@ -37,23 +37,36 @@ curl -sI https://tradingapi.bullet.xyz/fapi/v1/time | grep -i cf-ray
 # from our Tokyo server:     cf-ray: ...-DFW   (Dallas)
 ```
 
-Dallas. Cloudflare's address answers pings from Tokyo in 1.6 ms (it's
-[anycast](https://www.cloudflare.com/learning/cdn/glossary/anycast-network/):
-the same address is announced everywhere), but our requests are handled
-across the Pacific, and Tokyo to Dallas and back is ~130 ms. That matches
-everything else we measured: TCP handshakes of 131 ms in Part 4's probe,
-HTTPS round trips of ~220 ms, and Bullet's book arriving ~100 ms after
-Bullet stamps it.
+Dallas, at that moment. Cloudflare's address answers pings from Tokyo in
+1.6 ms (it's [anycast](https://www.cloudflare.com/learning/cdn/glossary/anycast-network/):
+every Cloudflare site announces the same address), so traffic enters
+Cloudflare in Tokyo. But Cloudflare also moves traffic between its sites
+when one is busy or costly ([Traffic Manager](https://blog.cloudflare.com/meet-traffic-manager/)),
+lower-tier plans first, and that evening our requests were being handled
+across the Pacific. Half an hour later the same server got Tokyo again:
+
+| Cloudflare site serving us | TCP handshake | Bullet book → us (p50) |
+|---|---|---|
+| Dallas (`DFW`) | ~131 ms | ~102 ms |
+| Tokyo (`NRT`) | 2-7 ms | **4.6 ms** |
+
+So Bullet's engine is near Tokyo after all; the extra 100 ms was the detour.
+`curl https://tradingapi.bullet.xyz/cdn-cgi/trace` prints `colo=`, the site
+serving you right now.
 
 Lessons:
 
 - **Look at the whole path, not one number.** `mtr` said 1.6 ms; the real
-  route was 130 ms. Headers like `cf-ray`, `via` and `server` tell you who
-  you're actually talking to.
-- **Some latency is on the venue's side.** No setting on our server changes
-  how Cloudflare routes traffic. Venues that care about it offer a direct
-  route (an AWS [PrivateLink](https://aws.amazon.com/privatelink/) endpoint,
-  a regional API host, or a cross-connect). Ask.
+  route was sometimes 130 ms. Headers and endpoints like `cf-ray` and
+  `/cdn-cgi/trace` tell you who you're actually talking to.
+- **Variance is the enemy.** A feed that's 5 ms most of the time and 100 ms
+  some of the time is worse to trade on than a steady 20 ms: you can't tell
+  which you're getting until your quotes are stale.
+- **Some of this is the venue's call.** No setting on our server changes
+  Cloudflare's routing. Latency-sensitive venues keep trading endpoints off a
+  CDN's shared tier, or offer a direct route (a regional host, an AWS
+  [PrivateLink](https://aws.amazon.com/privatelink/) endpoint, a
+  cross-connect). Ask.
 
 ## A hostname is a pool
 
@@ -111,8 +124,9 @@ network-optimised instance (the `n` in `c8gn`) for higher allowances.
 |---|---|
 | Binance → us | 1.5 ms |
 | our reaction (tick → order sent) | ~0.01 ms |
-| us → Bullet → order accepted | ~100-200 ms |
+| Bullet → us (book) | 4.6 ms via Tokyo, ~100 ms via Dallas |
+| us → Bullet → order accepted | ~100-200 ms (measured via Dallas and from a laptop) |
 
-Our side of the loop is now microseconds, and Binance is next door. The
-remaining time is the route to Bullet, through Cloudflare's Dallas site,
-which only the venue can shorten.
+Our side of the loop is now microseconds, and Binance is next door. What's
+left depends on which Cloudflare site Bullet's traffic is handled in, which
+only the venue can pin down.
