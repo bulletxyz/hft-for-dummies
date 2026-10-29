@@ -115,9 +115,9 @@ The same dry run, Tokyo server vs laptop:
 
 Binance is now 1.5 ms away. Two surprises:
 
-- **Bullet's feed is ~100 ms from Tokyo.** Placement can't fix what's on the
-  exchange's side of the wire. Part 10 tracks down where those milliseconds
-  go.
+- **Bullet's feed was ~100 ms from Tokyo in this run** (4.6 ms in another,
+  hours later). Placement can't fix what's on the exchange's side of the
+  wire; Part 10 tracks down where those milliseconds go.
 - **The server is far steadier than the laptop.** Queueing p99 dropped from
   300 µs to 6 µs: no browser, no laptop power management. That steadiness is
   what Part 8 tunes further.
