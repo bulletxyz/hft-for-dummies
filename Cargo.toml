@@ -1,0 +1,10 @@
+[package]
+name = "hft-for-dummies"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+rand = "0.9"
+rust_decimal = "1"

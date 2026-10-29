@@ -1,0 +1,3 @@
+[toolchain]
+channel = "1.99.0"  # pinned: a new stable rebuilds every cache cold; bump deliberately
+components = ["rustfmt", "clippy"]
