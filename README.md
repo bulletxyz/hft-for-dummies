@@ -50,17 +50,20 @@ trades against our old ones. Then fills come back and change our inventory,
 which changes the next quotes. Part 3 measures every hop. p50 is the middle;
 p99 is the tail that gets you picked off.
 
-## Quick start with Claude Code
+## Quick start with a coding agent
+
+Clone the repo and open it in your coding agent (Claude Code, Codex, Cursor,
+...):
 
 ```sh
 git clone https://github.com/bulletxyz/hft-for-dummies.git && cd hft-for-dummies
-claude
 ```
 
 Then ask: *"Set me up and run the bot."* It installs what's missing, runs the
 bot in dry run and explains what you're seeing. When you want real money,
 ask it to go live: it walks you through the steps below and never touches
-your private key or trades without your say-so (`AGENTS.md` has its rules).
+your private key or trades without your say-so (`AGENTS.md` has its rules,
+and most agents read it automatically).
 
 The steps below are the same thing by hand.
 
