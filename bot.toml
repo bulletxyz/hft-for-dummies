@@ -21,6 +21,7 @@ skew_bps = "5"                # at max position, lean both quotes 0.05% to unwin
 requote_threshold_bps = "3"   # replace a quote once it is 0.03% off where we want it
 min_requote_ms = 500          # but at most twice a second
 quote_ttl_secs = 30           # our orders expire after 30s (refreshed every 15s) if the bot dies
+max_requests_per_sec = 5      # our own cap on order transactions (Bullet allows 240/s per key)
 
 # --- Safety ---
 max_loss_usd = "2"            # stop quoting for this run after losing $2 (fees included)

@@ -66,6 +66,9 @@ pub struct Telemetry {
     our_clock_behind: Skew,
     our_clock_ahead: Skew,
     exchanges_disagree: Skew,
+    /// Order transactions sent to Bullet, to compare with the rate limit.
+    requests: u64,
+    started: Instant,
     last_report: Instant,
 }
 
@@ -77,6 +80,8 @@ impl Telemetry {
             our_clock_behind: Skew::default(),
             our_clock_ahead: Skew::default(),
             exchanges_disagree: Skew::default(),
+            requests: 0,
+            started: Instant::now(),
             last_report: Instant::now(),
         }
     }
@@ -119,6 +124,7 @@ impl Telemetry {
                 finished,
                 ..
             } => {
+                self.requests += 1;
                 let hop = match kind {
                     crate::events::SentKind::Place => SUBMIT_PLACE,
                     crate::events::SentKind::Replace => SUBMIT_REPLACE,
@@ -301,6 +307,15 @@ impl Telemetry {
             for hop in others {
                 self.row(&mut out, &format!("  {hop}"), hop);
             }
+        }
+        if self.requests > 0 {
+            let secs = self.started.elapsed().as_secs_f64().max(1.0);
+            let _ = writeln!(
+                out,
+                "  order requests sent: {} ({:.2} per second)",
+                self.requests,
+                self.requests as f64 / secs
+            );
         }
         let sync = "Fix the clock (macOS: turn automatic time off and on; Linux: chrony), or trust end-to-end, which doesn't use it.";
         for (skew, what) in [
