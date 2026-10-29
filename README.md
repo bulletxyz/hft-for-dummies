@@ -115,6 +115,18 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 | 10 | Network optimisation on AWS | coming |
 | 11 | Nonce management | coming |
 
+## Incidents
+
+Things that went wrong while building this live, and what each taught us.
+Details in each part's guide.
+
+| Part | Incident | Lesson |
+|------|----------|--------|
+| 2 | Binance socket went silent, no error | Silence isn't "nothing happened": time out and reconnect |
+| 2 | Bullet's websocket dropped a fill | Streams notify, records are truth: reconcile fills |
+| 2 | An order filled during shutdown | Check fills once more before reporting |
+| 2 | A cancel raced a fill | "Order not found" is normal; handle it (Part 6) |
+
 ## License
 
 Apache-2.0. Not financial advice.
