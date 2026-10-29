@@ -144,6 +144,7 @@ Details in each part's guide.
 | 2 | An order filled during shutdown | Check fills once more before reporting |
 | 2 | A cancel raced a fill | "Order not found" is normal; handle it (Part 6) |
 | 3 | Laptop clock 288 ms behind: messages "from the future" | Sync clocks before measuring across machines |
+| 4 | Our latency probe was timing DNS lookups | Know exactly what your tool measures |
 
 ## License
 

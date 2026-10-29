@@ -32,8 +32,14 @@ aws ec2 describe-availability-zones --region ap-northeast-1 \
 Don't guess which zone is closest: measure. `infra/probe/run.sh` starts one tiny
 server per zone, has each time 100 TCP handshakes to each exchange (a handshake
 is exactly one round trip), prints the table and deletes the servers. It costs
-a few cents. (One trap: curl's `time_connect` includes the DNS lookup, about
-1 ms here, which our first version of the probe forgot to subtract.)
+a few cents.
+
+> **Incident: the probe that measured DNS.** Our first probe reported 1.5 ms
+> to Binance. A later check from the bot's server said 0.4 ms. The
+> difference: curl's `time_connect` *includes* looking up the hostname
+> (~0.8 ms inside AWS). The probe now subtracts `time_namelookup`. *Lesson:*
+> know exactly what your tool measures; when two numbers disagree, find out
+> why before trusting either.
 
 ```sh
 ./infra/probe/run.sh
