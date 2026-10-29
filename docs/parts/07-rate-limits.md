@@ -52,6 +52,13 @@ Part 6 handled one reject ("order not found"). The executor now sorts them
 | rate limited | over a limit | empty our bucket (back off), requote later |
 | anything else | unknown | cancel everything and start fresh |
 
+> **Incident: the misleading error.** Before this part, a post-only order
+> that would have crossed was logged as "placing orders failed (often: not
+> enough margin)". The account had plenty of margin; the price had simply
+> moved while the order was in flight. A reader chasing that log line would
+> have deposited money for nothing. *Lesson:* an error message is a claim;
+> make it a true one.
+
 Treating every reject the same, either all retried or all fatal, is how bots
 end up hammering an exchange or stopping for no reason.
 
