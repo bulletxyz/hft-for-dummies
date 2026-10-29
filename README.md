@@ -157,6 +157,7 @@ Details in each part's guide.
 | 4 | Our latency probe was timing DNS lookups | Know exactly what your tool measures |
 | 5 | A 3 s heartbeat timeout fired falsely on wifi | Timeouts trade false alarms against reaction time |
 | 6 | Order confirmations arrived before our own request returned | Without waiting, expect any order of events |
+| 7 | "Not enough margin" logged for a post-only cross | Classify rejects; make error messages true |
 
 ## License
 
