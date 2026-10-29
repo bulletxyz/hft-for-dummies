@@ -52,14 +52,7 @@ p99 is the tail that gets you picked off.
 
 ## Quick start with a coding agent
 
-Clone the repo and open it in your coding agent (Claude Code, Codex, Cursor,
-...):
-
-```sh
-git clone https://github.com/bulletxyz/hft-for-dummies.git && cd hft-for-dummies
-```
-
-Then ask: *"Set me up and run the bot."* It installs what's missing, runs the
+Open the repo in your coding agent (Claude Code, Codex, Cursor, ...) and ask: *"Set me up and run the bot."* It installs what's missing, runs the
 bot in dry run and explains what you're seeing. When you want real money,
 ask it to go live: it walks you through the steps below and never touches
 your private key or trades without your say-so (`AGENTS.md` has its rules,
@@ -74,9 +67,7 @@ the one it uses and cargo fetches it). Tested on Mac and Linux; Windows
 should work but you're on your own.
 
 ```sh
-git clone https://github.com/bulletxyz/hft-for-dummies.git   # or your fork
-cd hft-for-dummies
-cargo run --release
+cargo run
 ```
 
 The first build takes a couple of minutes. Then, after about a minute of
@@ -133,7 +124,7 @@ Only do this once dry run makes sense to you.
    put even if the key leaks.
 
    ```sh
-   cargo run --release -- keygen
+   cargo run -- keygen
    ```
 
    This writes `bot.key` (git-ignored; never share it) and prints a link to
@@ -141,7 +132,7 @@ Only do this once dry run makes sense to you.
    and sign. The private key never leaves your machine. (Already have a
    delegate key? Paste its private key into `bot.key` instead.)
 3. **Switch off dry run.** In `bot.toml` set `dry_run = false`.
-4. **Run it:** `cargo run --release`. After the warm-up, two orders appear in
+4. **Run it:** `cargo run`. After the warm-up, two orders appear in
    the Bullet app either side of the price. Ctrl-C stops the bot and cancels
    them.
 

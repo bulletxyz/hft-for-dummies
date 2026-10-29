@@ -21,7 +21,7 @@ appears.
 - **Going live is the user's call.** Don't set `dry_run = false`, start a live
   run, or push them towards it unless they've asked to trade for real.
   Confirm the amount first. Prefer a copy of the config for live
-  (`cargo run --release -- run my-live.toml`) so `bot.toml` stays on dry run.
+  (`cargo run -- run my-live.toml`) so `bot.toml` stays on dry run.
 - **Keys.** Never ask for a private key in the chat, and never print, `cat`,
   copy, or commit `bot.key`. Prefer `keygen` and hand the user the link to
   confirm: the secret never leaves their disk. If they bring their own key,
@@ -49,7 +49,7 @@ appears.
 ### Commands
 
 ```sh
-cargo run --release           # run (dry run by default, reads bot.toml)
+cargo run                     # run (dry run by default, reads bot.toml)
 cargo run -- keygen           # make bot.key for live trading
 cargo test                    # after every change
 cargo fmt && cargo clippy --all-targets -- -D warnings   # before every commit (CI runs both)
