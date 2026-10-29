@@ -38,6 +38,9 @@ appears.
   curl -s "$U/fapi/v1/openOrders?address=ADDR&symbol=SOL-USD"    # resting orders
   ```
 
+  Full API docs (REST, WebSocket, order types, delegates), written for agents:
+  https://tradingapi.bullet.xyz/docs/llms.txt
+
   Run these before a live start (warn if there's already a SOL-USD position or
   orders) and after stopping (no orders should remain; any position is the
   user's to close or keep).
