@@ -66,6 +66,13 @@ and in between the clock wanders. Laptops are worst: they sleep, change
 networks and correct lazily. Ours was 288 ms behind real time one afternoon
 and 407 ms behind a few hours later.
 
+> **Incident: messages from the future.** The first telemetry run reported
+> every network hop as zero. The laptop's clock was 288 ms behind, so every
+> Binance and Bullet message "arrived before it was sent", and the code was
+> quietly rounding the negative times up to zero. *Fix:* the bot now counts
+> such messages and tells you to sync your clock instead of printing
+> nonsense. *Lesson:* a measurement you can't sanity-check is a guess.
+
 On a laptop, sync before you measure (and check with `sntp time.apple.com`):
 
 ```sh

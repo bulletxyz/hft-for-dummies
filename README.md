@@ -126,6 +126,7 @@ Details in each part's guide.
 | 2 | Bullet's websocket dropped a fill | Streams notify, records are truth: reconcile fills |
 | 2 | An order filled during shutdown | Check fills once more before reporting |
 | 2 | A cancel raced a fill | "Order not found" is normal; handle it (Part 6) |
+| 3 | Laptop clock 288 ms behind: messages "from the future" | Sync clocks before measuring across machines |
 
 ## License
 
