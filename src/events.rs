@@ -84,6 +84,10 @@ pub enum Intent {
     CancelAll,
     /// Ask the exchange for our position (comes back as [`Event::Position`]).
     SyncPosition,
+    /// Ask the exchange for our fills since startup (they come back as
+    /// [`Event::Fill`]s; ones we already have are ignored). The websocket can
+    /// miss a fill; the exchange's own record can't.
+    SyncFills,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

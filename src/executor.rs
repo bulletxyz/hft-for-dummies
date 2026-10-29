@@ -23,11 +23,18 @@ pub trait Executor {
 pub struct LiveExecutor {
     bullet: Bullet,
     bus: Bus,
+    /// Fills from this time on (µs since 1970) are ours to count. Set when we
+    /// read the starting position: everything before is already in it.
+    fills_since_us: Option<u64>,
 }
 
 impl LiveExecutor {
     pub fn new(bullet: Bullet, bus: Bus) -> Self {
-        Self { bullet, bus }
+        Self {
+            bullet,
+            bus,
+            fills_since_us: None,
+        }
     }
 }
 
@@ -47,9 +54,27 @@ impl Executor for LiveExecutor {
                     }
                 }
                 Intent::SyncPosition => match self.bullet.position().await {
-                    Ok(position) => self.send(Event::Position(position)),
+                    Ok(position) => {
+                        // Fills before this read are already in `position`. Our
+                        // clock may be off from the exchange's, so start counting
+                        // 10s later: nothing of ours can fill that early anyway,
+                        // since we cancelled everything and the bot spends its
+                        // first minute warming up before it quotes.
+                        self.fills_since_us
+                            .get_or_insert_with(|| unix_us() + 10_000_000);
+                        self.send(Event::Position(position));
+                    }
                     Err(e) => tracing::error!("reading our position failed: {e}"),
                 },
+                Intent::SyncFills => {
+                    let Some(since) = self.fills_since_us else {
+                        continue;
+                    };
+                    match self.bullet.fills_since(since).await {
+                        Ok(fills) => fills.into_iter().for_each(|f| self.send(Event::Fill(f))),
+                        Err(e) => tracing::warn!("checking our fills failed (will retry): {e}"),
+                    }
+                }
             }
         }
 
@@ -82,6 +107,12 @@ impl LiveExecutor {
     }
 }
 
+fn unix_us() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_micros() as u64)
+}
+
 /// Dry run: orders live only in memory.
 pub struct PaperExecutor {
     resting: Vec<Order>,
@@ -110,7 +141,7 @@ impl Executor for PaperExecutor {
                 Intent::Cancel { client_id } => self.resting.retain(|o| o.client_id != client_id),
                 Intent::CancelAll => self.resting.clear(),
                 // Paper trading starts flat and only changes by paper fills.
-                Intent::SyncPosition => {}
+                Intent::SyncPosition | Intent::SyncFills => {}
             }
         }
     }

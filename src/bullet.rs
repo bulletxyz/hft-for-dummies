@@ -107,7 +107,10 @@ pub async fn connect(config: &Config, bus: Bus) -> Result<Bullet> {
                             BookEvent::None => None,
                         }
                     }
-                    ServerMessage::OrderUpdate(update) => order_event(&update, &symbol),
+                    ServerMessage::OrderUpdate(update) => {
+                        tracing::debug!(?update, "bullet: order update");
+                        order_event(&update, &symbol)
+                    }
                     _ => None,
                 },
                 Some(WsEvent::Reconnecting) => {
@@ -189,6 +192,25 @@ impl Bullet {
         Ok(())
     }
 
+    /// Our fills on this market since `since_unix_us`, from the exchange's
+    /// own record (the most recent 1000).
+    pub async fn fills_since(&self, since_unix_us: u64) -> Result<Vec<Fill>> {
+        let account = self
+            .account
+            .as_deref()
+            .ok_or_else(|| anyhow!("no account in dry run"))?;
+        let body = reqwest::Client::new()
+            .get(format!("{}/fapi/v1/userTrades", self.client.url()))
+            .query(&[("address", account), ("symbol", &self.symbol)])
+            .query(&[("startTime", since_unix_us), ("limit", 1000)])
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
+        parse_user_trades(&body)
+    }
+
     /// Our position according to the exchange (positive = long).
     pub async fn position(&self) -> Result<Decimal> {
         let account = self
@@ -239,6 +261,46 @@ async fn market_rules(client: &Client, symbol: &str) -> Result<(Decimal, Decimal
         step.ok_or_else(|| anyhow!("{symbol} has no size step"))?,
         min_size,
     ))
+}
+
+/// `GET /fapi/v1/userTrades` rows as [`Fill`]s. A row doesn't say whether the
+/// order is now finished, so these never clear a resting order; if one did
+/// finish, the next cancel for it fails and the bot pulls and requotes.
+fn parse_user_trades(body: &str) -> Result<Vec<Fill>> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Row {
+        id: u64,
+        client_order_id: Option<u64>,
+        side: String,
+        price: Decimal,
+        qty: Decimal,
+        commission: Decimal,
+    }
+    #[derive(Deserialize)]
+    struct Page {
+        data: Vec<Row>,
+    }
+    let page: Page = serde_json::from_str(body).context("reading userTrades")?;
+    page.data
+        .into_iter()
+        .map(|row| {
+            let side = match row.side.as_str() {
+                "BUY" => Side::Buy,
+                "SELL" => Side::Sell,
+                other => bail!("userTrades: unknown side {other:?}"),
+            };
+            Ok(Fill {
+                trade_id: row.id,
+                client_id: row.client_order_id,
+                side,
+                price: row.price,
+                size: row.qty,
+                fee: row.commission,
+                order_finished: false,
+            })
+        })
+        .collect()
 }
 
 /// Turn one of our order updates into an [`Event`].
@@ -320,4 +382,32 @@ pub fn delegate_link(network: &str, signer: &str) -> String {
 #[derive(Deserialize)]
 struct DelegateOf {
     parent: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_fills_from_the_exchange_record() {
+        // A real row from mainnet (the fill our websocket missed on 2026-10-29).
+        let body = r#"{"data":[{"symbol":"SOL-USD","id":23168826,"orderId":5599961285,"clientOrderId":1793276669648035,"side":"SELL","price":"100.52","qty":"0.05","quoteQty":"5.026","realizedPnl":"0","commission":"0","commissionAsset":"USDC","time":1793277010300319,"positionSide":"BOTH","buyer":false,"maker":true,"isDegen":false}]}"#;
+        let fills = parse_user_trades(body).unwrap();
+        assert_eq!(fills.len(), 1);
+        let f = &fills[0];
+        assert_eq!(
+            (f.trade_id, f.client_id, f.side),
+            (23_168_826, Some(1_793_276_669_648_035), Side::Sell)
+        );
+        assert_eq!(
+            (f.price, f.size),
+            (Decimal::new(10052, 2), Decimal::new(5, 2))
+        );
+        assert!(!f.order_finished);
+    }
+
+    #[test]
+    fn an_empty_page_is_no_fills() {
+        assert!(parse_user_trades(r#"{"data":[]}"#).unwrap().is_empty());
+    }
 }

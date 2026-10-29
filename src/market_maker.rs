@@ -19,6 +19,9 @@ use crate::fair_value::{FairValue, NotReady};
 use crate::inventory::Inventory;
 use crate::strategy::{self, Quotes};
 
+/// How often to check our fills against the exchange's record.
+const FILL_CHECK_EVERY: Duration = Duration::from_secs(10);
+
 pub struct MarketMaker {
     config: Config,
     /// Bullet's price increment for this market.
@@ -31,6 +34,7 @@ pub struct MarketMaker {
     next_client_id: u64,
     last_requote: Option<Instant>,
     last_summary: Option<Instant>,
+    last_fill_check: Option<Instant>,
     /// Set when something means we must not quote again this run, and why.
     stopped: Option<&'static str>,
     /// Why we are (or aren't) quoting; logged when it changes.
@@ -54,6 +58,7 @@ impl MarketMaker {
             next_client_id,
             last_requote: None,
             last_summary: None,
+            last_fill_check: None,
             stopped: None,
             status: "",
         }
@@ -120,11 +125,11 @@ impl MarketMaker {
                 }
             }
             Event::Reconnecting => {
-                // We may have missed fills or cancels: pull everything, re-read the position.
-                tracing::warn!("Bullet reconnecting: pulling quotes and re-reading our position");
+                // We may have missed fills or cancels: pull everything, catch up on fills.
+                tracing::warn!("Bullet reconnecting: pulling quotes and checking our fills");
                 self.book = None;
                 let mut intents = self.pull();
-                intents.push(Intent::SyncPosition);
+                intents.push(Intent::SyncFills);
                 return intents;
             }
             Event::Tick => {
@@ -134,6 +139,13 @@ impl MarketMaker {
                 {
                     self.log_summary();
                     self.last_summary = Some(now);
+                }
+                if self
+                    .last_fill_check
+                    .is_none_or(|t| now.duration_since(t) >= FILL_CHECK_EVERY)
+                {
+                    self.last_fill_check = Some(now);
+                    return vec![Intent::SyncFills];
                 }
             }
             Event::Disconnected(_) | Event::Shutdown => {}
@@ -546,12 +558,44 @@ mod tests {
     }
 
     #[test]
-    fn a_reconnect_pulls_everything_and_resyncs() {
+    fn checks_fills_against_the_exchange_every_ten_seconds() {
+        let (mut mm, now) = warmed_up();
+        assert_eq!(mm.on_event(&Event::Tick, now), vec![Intent::SyncFills]);
+        assert!(
+            mm.on_event(&Event::Tick, now + Duration::from_secs(5))
+                .is_empty()
+        );
+        assert_eq!(
+            mm.on_event(&Event::Tick, now + FILL_CHECK_EVERY),
+            vec![Intent::SyncFills]
+        );
+    }
+
+    #[test]
+    fn a_fill_the_websocket_missed_is_recovered_once() {
+        let (mut mm, now) = warmed_up();
+        let fill = Fill {
+            trade_id: 42,
+            client_id: None,
+            side: Side::Sell,
+            price: d("100"),
+            size: d("1"),
+            fee: Decimal::ZERO,
+            order_finished: false,
+        };
+        // The exchange's record brings it in; a late websocket copy changes nothing.
+        mm.on_event(&Event::Fill(fill.clone()), now);
+        mm.on_event(&Event::Fill(fill), now);
+        assert_eq!(mm.inventory.position, d("-1"));
+    }
+
+    #[test]
+    fn a_reconnect_pulls_everything_and_checks_fills() {
         let (mut mm, now) = warmed_up();
         mm.requote(now);
         assert_eq!(
             mm.on_event(&Event::Reconnecting, now),
-            vec![Intent::CancelAll, Intent::SyncPosition]
+            vec![Intent::CancelAll, Intent::SyncFills]
         );
         assert!(
             mm.requote(now).is_empty(),
