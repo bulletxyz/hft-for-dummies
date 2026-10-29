@@ -48,7 +48,15 @@ A 4-minute dry run on a laptop, debug vs release, side by side:
 | bot: received → handled | 10 µs / 200 µs | 10 µs / 300 µs |
 | binance: match → sent | ~0 / 31 ms | ~0 / 31 ms |
 
-Three lessons:
+And live, from the same laptop (5 minutes, quoting 10 bps wide):
+
+| Hop | p50 | p99 |
+|---|---|---|
+| bullet: place sent → accepted | 161 ms | 548 ms |
+| bullet: place sent → live on book | 319 ms | 1,972 ms |
+| bot: received → handled | 0.06 ms | **2,802 ms** |
+
+Four lessons:
 
 1. **Our code is not the problem.** Deciding takes microseconds. Release
    makes it 3-5x faster, and it still doesn't matter next to the network,
@@ -57,7 +65,10 @@ Three lessons:
 2. **Binance itself has a tail.** Usually it sends a book change the same
    millisecond it happens, but 1% of the time it's 30+ ms late. No amount of
    tuning on our side fixes that; we can only notice it.
-3. **You can't measure one-way network latency with an unsynced clock.** The
+3. **Waiting is the real cost.** The bot waits for each order request to
+   finish before reading the next event, so every Binance tick that arrives
+   meanwhile sits in the queue: p99 of almost 3 seconds. Part 6 fixes that.
+4. **You can't measure one-way network latency with an unsynced clock.** The
    laptop's clock was 288 ms behind real time, so every message "arrived
    before it was sent". The bot now spots this and tells you to sync
    (`sudo sntp -sS time.apple.com` on macOS). Servers keep their clocks well within a
