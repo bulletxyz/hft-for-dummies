@@ -32,7 +32,8 @@ aws ec2 describe-availability-zones --region ap-northeast-1 \
 Don't guess which zone is closest: measure. `infra/probe/run.sh` starts one tiny
 server per zone, has each time 100 TCP handshakes to each exchange (a handshake
 is exactly one round trip), prints the table and deletes the servers. It costs
-a few cents:
+a few cents. (One trap: curl's `time_connect` includes the DNS lookup, about
+1 ms here, which our first version of the probe forgot to subtract.)
 
 ```sh
 ./infra/probe/run.sh
@@ -40,21 +41,24 @@ a few cents:
 
 ```text
 ZONE       HOST                   P50_MS  P99_MS
-apne1-az1  fstream.binance.com    3.19    8.08
-apne1-az2  fstream.binance.com    3.32    8.22
-apne1-az4  fstream.binance.com    1.55    9.91
+apne1-az1  fstream.binance.com    2.03    4.82
+apne1-az2  fstream.binance.com    2.02    4.02
+apne1-az4  fstream.binance.com    0.50    1.91
 ```
 
-`apne1-az4` is about twice as close to Binance as the others, so that's the
-default in `infra/bot/main.tf`. Run the probe yourself: results drift as
-exchanges move hardware.
+Half a millisecond: `apne1-az4` is in or next to the building Binance's
+servers are in, four times closer than the other zones. That's the default
+in `infra/bot/main.tf`. Run the probe yourself: results drift as exchanges
+move hardware.
 
 A caveat worth learning: a handshake only measures the distance to whoever
 answers it. Bullet's API sits behind [Cloudflare](https://www.cloudflare.com/),
-so a handshake reaches a nearby Cloudflare edge, not Bullet itself (from the
-laptop: 8.75 ms to the edge, ~103 ms for a real request). To see the true
-distance, time something the exchange itself must answer, like a full request
-or, best, the bot's own telemetry.
+so a handshake reaches a Cloudflare edge, not Bullet itself. Which edge, and
+how far, depends on Cloudflare's routing for your address at that moment: our
+probes saw anywhere from 4 ms to 131 ms from the same zones on the same day,
+while the bot's server reached the edge in under 2 ms. None of that is the
+distance to Bullet. To see that, time something Bullet itself must answer: a
+full request or, best, the bot's own telemetry (below).
 
 ## Which server
 
