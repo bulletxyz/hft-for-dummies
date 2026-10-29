@@ -1,0 +1,27 @@
+#cloud-config
+# Runs once, at the server's first boot.
+
+packages:
+  - gcc            # Rust needs a C linker
+  - openssl-devel  # for TLS to the exchanges (Part 9 swaps this for rustls)
+  - rsync          # deploy.sh copies the code with it
+
+write_files:
+  # The bot as a service: started and stopped by deploy.sh, logs in journald.
+  - path: /etc/systemd/system/hft-bot.service
+    content: |
+      [Unit]
+      Description=hft-for-dummies market maker
+      After=network-online.target
+
+      [Service]
+      User=ec2-user
+      WorkingDirectory=/home/ec2-user/hft
+      ExecStart=/home/ec2-user/hft/target/release/hft-for-dummies run bot.toml
+      # Ctrl-C, not kill: the bot cancels its orders on the way out.
+      KillSignal=SIGINT
+      TimeoutStopSec=30
+
+runcmd:
+  # Rust for ec2-user; the repo's rust-toolchain.toml picks the version.
+  - su - ec2-user -c "curl -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none"
