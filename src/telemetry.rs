@@ -40,6 +40,9 @@ pub struct Telemetry {
     hops: BTreeMap<&'static str, Histogram<u64>>,
     /// When each order we placed was sent, until the exchange echoes it.
     placed_at: HashMap<u64, Instant>,
+    /// Echoes that arrived before we heard our own request had finished: the
+    /// websocket can beat the HTTP response back to us.
+    live_at: HashMap<u64, Instant>,
     /// Messages that arrived "before" the exchange sent them, and by how much
     /// at worst: our clock is behind theirs, so network numbers are wrong.
     clock_behind: u64,
@@ -52,6 +55,7 @@ impl Telemetry {
         Self {
             hops: BTreeMap::new(),
             placed_at: HashMap::new(),
+            live_at: HashMap::new(),
             clock_behind: 0,
             clock_behind_max_us: 0,
             last_report: Instant::now(),
@@ -97,7 +101,15 @@ impl Telemetry {
                 let hop = match kind {
                     crate::events::SentKind::Place => {
                         for id in client_ids {
-                            self.placed_at.insert(*id, *started);
+                            match self.live_at.remove(id) {
+                                Some(live) => self.record(
+                                    PLACE_TO_LIVE,
+                                    live.saturating_duration_since(*started),
+                                ),
+                                None => {
+                                    self.placed_at.insert(*id, *started);
+                                }
+                            }
                         }
                         SUBMIT_PLACE
                     }
@@ -105,14 +117,15 @@ impl Telemetry {
                 };
                 self.record(hop, finished.saturating_duration_since(*started));
             }
-            Event::OrderLive { client_id, stamp } => {
-                if let Some(sent) = self.placed_at.remove(client_id) {
-                    self.record(
-                        PLACE_TO_LIVE,
-                        stamp.received_at.saturating_duration_since(sent),
-                    );
+            Event::OrderLive { client_id, stamp } => match self.placed_at.remove(client_id) {
+                Some(sent) => self.record(
+                    PLACE_TO_LIVE,
+                    stamp.received_at.saturating_duration_since(sent),
+                ),
+                None => {
+                    self.live_at.insert(*client_id, stamp.received_at);
                 }
-            }
+            },
             _ => {}
         }
     }
@@ -139,6 +152,8 @@ impl Telemetry {
             // Placed orders the exchange never echoed (rejected, or a dry run) would pile up.
             self.placed_at
                 .retain(|_, sent| now.duration_since(*sent) < REPORT_EVERY);
+            self.live_at
+                .retain(|_, live| now.duration_since(*live) < REPORT_EVERY);
         }
     }
 
@@ -236,6 +251,33 @@ mod tests {
             "{}",
             t.table()
         );
+    }
+
+    #[test]
+    fn the_echo_can_arrive_before_the_http_response() {
+        let mut t = Telemetry::new();
+        let sent = Instant::now();
+        let live = Stamp {
+            received_at: sent + Duration::from_millis(90),
+            ..Stamp::at(sent)
+        };
+        t.on_event(
+            &Event::OrderLive {
+                client_id: 9,
+                stamp: live,
+            },
+            sent,
+        );
+        t.on_event(
+            &Event::Sent {
+                kind: SentKind::Place,
+                client_ids: vec![9],
+                started: sent,
+                finished: sent + Duration::from_millis(130),
+            },
+            sent,
+        );
+        assert_near(p50_us(&t, PLACE_TO_LIVE), 90_000);
     }
 
     #[test]
