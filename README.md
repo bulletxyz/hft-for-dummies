@@ -50,6 +50,20 @@ trades against our old ones. Then fills come back and change our inventory,
 which changes the next quotes. Part 3 measures every hop. p50 is the middle;
 p99 is the tail that gets you picked off.
 
+## Quick start with Claude Code
+
+```sh
+git clone https://github.com/bulletxyz/hft-for-dummies.git && cd hft-for-dummies
+claude
+```
+
+Then ask: *"Set me up and run the bot."* It installs what's missing, runs the
+bot in dry run and explains what you're seeing. When you want real money,
+ask it to go live: it walks you through the steps below and never touches
+your private key or trades without your say-so (`AGENTS.md` has its rules).
+
+The steps below are the same thing by hand.
+
 ## Run it (no money)
 
 Needs Mac or Linux. If you don't have Rust:
@@ -77,8 +91,6 @@ bullet mid 100.656 | fair 100.6573 | our bid 100.556 ask 100.758 | position 0 | 
 The bot is pricing SOL off Binance and quoting either side of it on Bullet,
 on paper. `FILL` means the real market traded through a paper quote. Ctrl-C
 stops it. Tweak `bot.toml` (`spread_bps`, `skew_bps`, ...) and run again.
-
-Using a coding agent? Ask it to run the bot; `AGENTS.md` tells it how.
 
 ## How the code is laid out
 
