@@ -66,9 +66,8 @@ The steps below are the same thing by hand.
 
 ## Run it (no money)
 
-Needs Mac or Linux. If you don't have Rust:
-`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh` (the repo
-pins the version; cargo fetches it).
+Needs Mac or Linux and [Rust](https://rust-lang.org/install.html) (any
+version; the repo pins the one it uses and cargo fetches it).
 
 ```sh
 git clone https://github.com/bulletxyz/hft-for-dummies.git   # or your fork
@@ -160,7 +159,7 @@ the Bullet app afterwards.
 
 | You see | It means |
 |---------|----------|
-| `command not found: cargo` | Install Rust (above), then open a new terminal. |
+| `command not found: cargo` | [Install Rust](https://rust-lang.org/install.html), then open a new terminal. |
 | `...that address isn't a delegate` | The key in `bot.key` isn't a delegate on your account yet. Approve it in the Bullet app, check you pasted the **private** key (not the address), and check `network` in `bot.toml`. |
 | `reading the key file bot.key` | There's no `bot.key` in this folder. See Going live, step 2. |
 | `order_size ... is below ...'s minimum` or `must be a multiple of` | Change `order_size` in `bot.toml` to a size the market accepts (SOL-USD: steps of 0.01). |
