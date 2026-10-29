@@ -1,3 +1,6 @@
 /target
 .env
 .DS_Store
+
+# Your bot's private key. Never commit it.
+*.key

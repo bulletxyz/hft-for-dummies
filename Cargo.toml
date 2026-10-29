@@ -6,5 +6,16 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
-rand = "0.9"
-rust_decimal = "1"
+anyhow = "1"
+bullet-rust-sdk = { version = "0.0.44", default-features = false }
+clap = { version = "4", features = ["derive"] }
+futures-util = "0.3"
+reqwest = { version = "0.13", features = ["json"] }
+rust_decimal = { version = "1", features = ["serde-with-str"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
+toml = "0.9"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

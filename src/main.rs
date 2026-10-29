@@ -1,48 +1,84 @@
-mod quoter;
-mod sim;
+//! HFT for dummies: a market maker on Bullet that borrows its price from Binance.
+//!
+//! Start reading at `events.rs` (the vocabulary), then `bot.rs` (the loop),
+//! `market_maker.rs` (the decisions) and `strategy.rs` (the prices).
 
-use rust_decimal::Decimal;
+mod binance;
+mod book;
+mod bot;
+mod bullet;
+mod config;
+mod events;
+mod executor;
+mod fair_value;
+mod inventory;
+mod market_maker;
+mod strategy;
 
-use quoter::{Config, quote};
-use sim::Market;
+use std::path::PathBuf;
 
-const TICKS: u32 = 10_000;
-const REPORT_EVERY: u32 = 1_000;
+use anyhow::{Result, bail};
+use bullet_rust_sdk::Keypair;
+use clap::{Parser, Subcommand};
 
-fn main() {
-    let cfg = Config {
-        half_spread: Decimal::new(2, 2),   // 0.02
-        skew_per_unit: Decimal::new(1, 2), // 0.01
-        max_position: Decimal::from(5),
-    };
-    let mut market = Market::new(Decimal::from(100), 42);
-    let mut position = Decimal::ZERO;
-    let mut cash = Decimal::ZERO;
+#[derive(Parser)]
+#[command(about = "A simple market maker for the HFT for dummies series")]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+}
 
-    for tick in 1..=TICKS {
-        let t = market.step();
-        let quotes = quote(t.fair, position, &cfg);
+#[derive(Subcommand)]
+enum Command {
+    /// Run the bot (the default).
+    Run {
+        #[arg(default_value = "bot.toml")]
+        config: PathBuf,
+    },
+    /// Make a new trading key for the bot, to delegate to in the Bullet app.
+    Keygen {
+        #[arg(default_value = "bot.key")]
+        path: PathBuf,
+        #[arg(long, default_value = "mainnet")]
+        network: String,
+    },
+}
 
-        // A trade at or through our quote fills one unit.
-        if let Some(bid) = quotes.bid
-            && t.trade <= bid
-        {
-            position += Decimal::ONE;
-            cash -= bid;
-        }
-        if let Some(ask) = quotes.ask
-            && t.trade >= ask
-        {
-            position -= Decimal::ONE;
-            cash += ask;
-        }
+#[tokio::main]
+async fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
+        .init();
 
-        if tick % REPORT_EVERY == 0 {
-            let pnl = cash + position * t.fair;
-            println!(
-                "tick {tick:>6}  fair {:>8}  position {position:>3}  pnl {pnl:>8}",
-                t.fair
-            );
-        }
+    match Cli::parse().command.unwrap_or(Command::Run {
+        config: "bot.toml".into(),
+    }) {
+        Command::Run { config } => bot::run(&config).await,
+        Command::Keygen { path, network } => keygen(&path, &network),
     }
+}
+
+fn keygen(path: &PathBuf, network: &str) -> Result<()> {
+    if path.exists() {
+        bail!("{} already exists; not overwriting a key", path.display());
+    }
+    let keypair = Keypair::generate();
+    keypair.write_to_file(path)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        // Only you can read it.
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    }
+    let address = keypair.address();
+    println!(
+        "Wrote a new key to {}. Keep it secret; never commit it.\n",
+        path.display()
+    );
+    println!("Its address: {address}\n");
+    println!("Next: in the Bullet app, delegate a funded sub-account to this address:");
+    println!("  {}", bullet::delegate_link(network, &address));
+    Ok(())
 }
