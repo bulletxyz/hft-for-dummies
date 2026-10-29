@@ -109,7 +109,7 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 | 3 | Telemetry and latency measurement | [guide](docs/parts/03-telemetry.md) · [`part-3`](https://github.com/bulletxyz/hft-for-dummies/tree/part-3) |
 | 4 | Colocation on AWS | [guide](docs/parts/04-colocation.md) · [`part-4`](https://github.com/bulletxyz/hft-for-dummies/tree/part-4) |
 | 5 | Streaming market data | [guide](docs/parts/05-streaming.md) · [`part-5`](https://github.com/bulletxyz/hft-for-dummies/tree/part-5) |
-| 6 | Order execution | coming |
+| 6 | Order execution | [guide](docs/parts/06-execution.md) · [`part-6`](https://github.com/bulletxyz/hft-for-dummies/tree/part-6) |
 | 7 | Rate limits | coming |
 | 8 | Linux tuning | coming |
 | 9 | Optimising the hot path | coming |
