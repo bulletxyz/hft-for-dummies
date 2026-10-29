@@ -71,7 +71,7 @@ Two lessons:
 
 1. **A market maker sends far fewer requests than you'd think.** Even
    requoting on every half-tick move, a calm market gave us one request every
-   two to three seconds, a hundredth of a percent of Bullet's limit. Rate
+   two to three seconds: about 0.1% of Bullet's limit. Rate
    limits bite in bursts (a fast market, a reconnect, a bug), which is why
    the budget is there.
 2. **Too tight a budget backfires.** At 2/s, 55 amends were held back. Each
