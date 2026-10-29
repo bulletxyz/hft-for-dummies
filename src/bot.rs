@@ -51,11 +51,17 @@ pub async fn run(config_path: &Path, live: bool) -> Result<()> {
     spawn_ctrl_c(bus.clone());
 
     let dry_run = config.dry_run;
+    let max_requests_per_sec = config.max_requests_per_sec;
     let market_maker = MarketMaker::new(config, bullet.tick);
     if dry_run {
         event_loop(market_maker, PaperExecutor::new(bus), events).await
     } else {
-        event_loop(market_maker, LiveExecutor::new(bullet, bus), events).await
+        event_loop(
+            market_maker,
+            LiveExecutor::new(bullet, bus, max_requests_per_sec),
+            events,
+        )
+        .await
     }
 }
 

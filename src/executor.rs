@@ -16,8 +16,9 @@ use std::time::Instant;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use crate::bullet::Bullet;
+use crate::bullet::{self, Bullet, Reject};
 use crate::events::{Bus, Event, Fill, Intent, Order, SentKind, Side};
+use crate::rate_limit::TokenBucket;
 
 pub trait Executor {
     /// Queue `intents`. Returns immediately.
@@ -37,11 +38,14 @@ pub struct LiveExecutor {
 }
 
 impl LiveExecutor {
-    pub fn new(bullet: Bullet, bus: Bus) -> Self {
+    pub fn new(bullet: Bullet, bus: Bus, max_requests_per_sec: f64) -> Self {
         let (queue, mut batches) = mpsc::unbounded_channel::<Vec<Intent>>();
+        // A one-second burst, a quarter of it kept for cancels.
         let mut worker = Worker {
             bullet,
             bus,
+            budget: TokenBucket::new(max_requests_per_sec, max_requests_per_sec),
+            reserve: (max_requests_per_sec / 4.0).max(1.0),
             fills_since_us: None,
         };
         let worker = tokio::spawn(async move {
@@ -68,9 +72,19 @@ impl Executor for LiveExecutor {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Priority {
+    Cancel,
+    NewOrder,
+}
+
 struct Worker {
     bullet: Bullet,
     bus: Bus,
+    /// Our own cap on transactions per second (see `max_requests_per_sec`).
+    budget: TokenBucket,
+    /// Tokens new orders must leave for cancels.
+    reserve: f64,
     /// Fills from this time on (µs since 1970) are ours to count. Set when we
     /// read the starting position: everything before is already in it.
     fills_since_us: Option<u64>,
@@ -87,6 +101,7 @@ impl Worker {
                 Intent::Replace { old, new } => replaces.push((old, new)),
                 Intent::Cancel { client_id } => cancels.push(client_id),
                 Intent::CancelAll => {
+                    self.spend(Priority::Cancel).await;
                     if let Err(e) = self.bullet.cancel_all().await {
                         tracing::error!(
                             "cancel all failed, check the Bullet app for resting orders: {e}"
@@ -122,30 +137,98 @@ impl Worker {
         // each moved quote) and new orders. A cancel for an order that filled
         // just before it arrived is skipped by Bullet, so that race needs no
         // special handling.
-        let kind = match (replaces.is_empty(), places.is_empty()) {
-            (false, _) => SentKind::Replace,
-            (true, false) => SentKind::Place,
-            (true, true) => SentKind::Cancel,
-        };
+        let moved = !replaces.is_empty();
         cancels.extend(replaces.iter().map(|(old, _)| *old));
         places.extend(replaces.into_iter().map(|(_, new)| new));
-        if cancels.is_empty() && places.is_empty() {
-            return;
+        if places.is_empty() {
+            return self.cancel_only(cancels).await;
         }
         let new_ids: Vec<u64> = places.iter().map(|o| o.client_id).collect();
-        if let Err(e) = self
+        if !self.spend(Priority::NewOrder).await {
+            return self
+                .abandon(cancels, new_ids, "rate budget spent, holding back")
+                .await;
+        }
+        let kind = if moved {
+            SentKind::Replace
+        } else {
+            SentKind::Place
+        };
+        let Err(e) = self
             .timed(kind, self.bullet.cancel_and_place(&cancels, &places))
             .await
-        {
-            // Nothing in the request happened, but we may not have heard back
-            // from a request that did. Tell the strategy, which cancels
-            // everything and starts its quotes afresh.
-            tracing::warn!("sending orders failed (often: not enough margin): {e}");
-            self.send(Event::CancelFailed);
-            self.send(Event::PlaceFailed {
-                client_ids: new_ids,
-            });
+        else {
+            return;
+        };
+        // A rejected request did nothing: the old orders still rest.
+        match bullet::classify(&e) {
+            // The price moved between pricing and arriving: normal in a fast market.
+            Reject::WouldCross => {
+                self.abandon(cancels, new_ids, "post-only would cross")
+                    .await
+            }
+            Reject::RateLimited => {
+                self.budget.empty();
+                self.abandon(cancels, new_ids, "rate limited").await;
+            }
+            Reject::Other => self.give_up(&e, new_ids),
         }
+    }
+
+    /// Cancels take risk off, so they may use the tokens we keep in reserve,
+    /// and wait for one if the budget is empty.
+    async fn cancel_only(&mut self, cancels: Vec<u64>) {
+        if cancels.is_empty() {
+            return;
+        }
+        loop {
+            self.spend(Priority::Cancel).await;
+            let request = self.bullet.cancel_and_place(&cancels, &[]);
+            match self.timed(SentKind::Cancel, request).await {
+                Ok(()) => return,
+                Err(e) if bullet::classify(&e) == Reject::RateLimited => self.budget.empty(), // wait, then try again
+                Err(e) => return self.give_up(&e, Vec::new()),
+            }
+        }
+    }
+
+    /// Spend one request from the budget. Cancels wait for a token; new
+    /// orders don't (a quote that waits is stale anyway) and leave the reserve.
+    async fn spend(&mut self, priority: Priority) -> bool {
+        let keep = match priority {
+            Priority::Cancel => 0.0,
+            Priority::NewOrder => self.reserve,
+        };
+        loop {
+            let now = Instant::now();
+            if self.budget.try_take(now, keep) {
+                return true;
+            }
+            if priority == Priority::NewOrder {
+                return false;
+            }
+            tokio::time::sleep(self.budget.wait_time(now)).await;
+        }
+    }
+
+    /// Don't place these new orders: cancel the old ones (they may still be
+    /// resting) and tell the strategy the new ones never went out.
+    async fn abandon(&mut self, cancels: Vec<u64>, new_ids: Vec<u64>, why: &str) {
+        tracing::info!("{why}; pulling the quotes we meant to move");
+        self.cancel_only(cancels).await;
+        self.send(Event::PlaceFailed {
+            client_ids: new_ids,
+        });
+    }
+
+    /// Something failed that we can't untangle: tell the strategy, which
+    /// cancels everything and starts its quotes afresh.
+    fn give_up(&self, e: &anyhow::Error, new_ids: Vec<u64>) {
+        tracing::warn!("sending orders failed (often: not enough margin): {e}");
+        self.send(Event::CancelFailed);
+        self.send(Event::PlaceFailed {
+            client_ids: new_ids,
+        });
     }
 
     fn send(&self, event: Event) {

@@ -15,11 +15,11 @@ use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
-use bullet_rust_sdk::codegen::types::Filter;
+use bullet_rust_sdk::codegen::types::{ApiErrorDetail, Filter};
 use bullet_rust_sdk::types::{OrderUpdateData, OrderUpdateMessage};
 use bullet_rust_sdk::{
     Client, ClientOrderId, Keypair, ManagedWsConfig, MarketId, Network, NewOrderArgs, OrderIdKind,
-    OrderType, OrderbookDepth, PositiveDecimal, ServerMessage, Side as BulletSide, Topic,
+    OrderType, OrderbookDepth, PositiveDecimal, SDKError, ServerMessage, Side as BulletSide, Topic,
     UnixTimestampMicros, UserActionDiscriminants, WsEvent,
 };
 use rust_decimal::Decimal;
@@ -233,6 +233,40 @@ fn new_order_args(o: &Order) -> Result<NewOrderArgs> {
         client_order_id: Some(ClientOrderId(o.client_id)),
         pending_tpsl_pair: None,
     })
+}
+
+/// Why Bullet rejected a request, for the reasons the bot handles differently.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Reject {
+    /// A post-only order would have crossed the book (the price moved under us).
+    WouldCross,
+    /// Over the rate limit: back off.
+    RateLimited,
+    /// Anything else.
+    Other,
+}
+
+pub fn classify(error: &anyhow::Error) -> Reject {
+    let Some(api) = error
+        .downcast_ref::<SDKError>()
+        .and_then(SDKError::api_error)
+    else {
+        return Reject::Other;
+    };
+    // The sequencer's per-key limit (503) or Cloudflare's per-IP limit (429).
+    if api.status == 429 || (api.status == 503 && api.message.contains("rate-limited")) {
+        return Reject::RateLimited;
+    }
+    let Some(ApiErrorDetail::Object(details)) = &api.details else {
+        return Reject::Other;
+    };
+    let field = |name: &str| details.get(name).and_then(|v| v.as_str());
+    match field("code") {
+        Some("order_behavior_violation") if field("order_type") == Some("post_only") => {
+            Reject::WouldCross
+        }
+        _ => Reject::Other,
+    }
 }
 
 /// We ping each connection every second and Bullet answers every ping, so a
@@ -467,6 +501,20 @@ mod tests {
             (Decimal::new(10052, 2), Decimal::new(5, 2))
         );
         assert!(!f.order_finished);
+    }
+
+    fn api_error(json: &str) -> anyhow::Error {
+        let response: bullet_rust_sdk::ApiErrorResponse = serde_json::from_str(json).unwrap();
+        SDKError::ApiError(Box::new(response)).into()
+    }
+
+    #[test]
+    fn other_errors_are_just_errors() {
+        let e = api_error(
+            r#"{"status":400,"message":"Transaction execution unsuccessful","details":{"code":"insufficient_margin"}}"#,
+        );
+        assert_eq!(classify(&e), Reject::Other);
+        assert_eq!(classify(&anyhow!("connection reset")), Reject::Other);
     }
 
     #[test]
