@@ -64,12 +64,15 @@ Then open a new terminal. On Windows, download and run
 version: the repo pins one (`rust-toolchain.toml`) and `cargo` fetches it
 the first time.
 
-**2. Get the code.** Fork this repo on GitHub (button top right), then:
+**2. Get the code.** Fork this repo on GitHub (button top right) so you can
+keep your own changes, then:
 
 ```sh
 git clone https://github.com/<your-username>/hft-for-dummies.git
 cd hft-for-dummies
 ```
+
+(Just want to try it? Clone `https://github.com/bulletxyz/hft-for-dummies.git` instead.)
 
 (No git? `brew install git` on macOS, or [git-scm.com](https://git-scm.com).)
 
@@ -80,7 +83,7 @@ cargo run --release
 ```
 
 The first build downloads and compiles everything: a couple of minutes. Then
-you'll see:
+you'll see something like this (timestamps trimmed):
 
 ```text
 DRY RUN: watching SOL-USD and logging the quotes we would place. No orders are sent.
@@ -99,6 +102,11 @@ Bullet, on paper. When the real Bullet market trades through one of your
 paper quotes you'll see a `FILL`. Press **Ctrl-C** to stop.
 
 Now open `bot.toml`, change `spread_bps` or `skew_bps`, and run it again.
+
+**Rather have an AI do the setup?** Open this folder in
+[Claude Code](https://claude.com/claude-code) (or another coding agent) and
+ask it to help you run the bot. `AGENTS.md` tells it how, including never to
+go live or handle your keys without you.
 
 ## How the code is laid out
 
@@ -130,7 +138,8 @@ Run the tests any time with `cargo test`.
 Only do this once dry run makes sense to you.
 
 1. **Make a Bullet account** at [app.bullet.xyz](https://app.bullet.xyz) and
-   deposit about **$20 of USDC**. With the default settings the bot holds at
+   deposit about **$20 of USDC** (for example, bridge it in from Solana in
+   the app). With the default settings the bot holds at
    most 0.1 SOL (about $10) plus two resting orders, and $20 covers that at
    1x leverage. To start with $10, set the account's leverage to 2-3x in the
    app; the bot's own limits stay the same.
@@ -146,8 +155,10 @@ Only do this once dry run makes sense to you.
 
    Git ignores `bot.key`. Never share it or commit it.
 3. **Switch off dry run.** In `bot.toml` set `dry_run = false`.
-4. **Run it:** `cargo run --release`. Ctrl-C stops the bot and cancels its
-   orders.
+4. **Run it:** `cargo run --release`. After the minute of warm-up you'll see
+   `quoting`, and two orders appear in the Bullet app, one either side of
+   the price. Fills show up as `FILL` lines and in the app. Ctrl-C stops the
+   bot and cancels its orders.
 
 While it runs, **don't trade SOL-USD by hand on the same account.** The bot
 cancels every SOL-USD order on the account when it starts, stops or
@@ -167,6 +178,19 @@ What protects you, all in `bot.toml`:
 
 Stopping the bot (or it crashing) leaves any position open. Check the Bullet
 app after you stop it.
+
+## Troubleshooting
+
+| You see | It means |
+|---------|----------|
+| `command not found: cargo` | Rust isn't installed, or you need a new terminal after installing it. |
+| `...that address isn't a delegate` | The key in `bot.key` isn't a delegate on your account yet. Approve it in the Bullet app, check you pasted the **private** key (not the address), and check `network` in `bot.toml`. |
+| `reading the key file bot.key` | There's no `bot.key` in this folder. See Going live, step 2. |
+| `order_size ... is below ...'s minimum` or `must be a multiple of` | Change `order_size` in `bot.toml` to a size the market accepts (SOL-USD: steps of 0.01). |
+| `placing orders failed` (repeatedly) | Usually not enough margin: deposit more, raise the account's leverage, or lower `order_size`. Nothing is lost; the bot just isn't quoting. |
+| `cancel all failed` | Couldn't confirm our orders were cancelled. Check the Bullet app and cancel any SOL-USD orders by hand. |
+| `position bigger than max_position` | The account already holds more SOL-USD than the bot ever would (you traded it by hand?). Close it or raise `max_position`. |
+| Stuck on `learning the Binance-to-Bullet price gap` for minutes | Binance isn't reachable from your network (some countries block it). Look for `binance: connect failed`. |
 
 ## Following along
 
