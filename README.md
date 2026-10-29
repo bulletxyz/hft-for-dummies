@@ -113,7 +113,7 @@ to see the code as of that post).
 | Part | Post | Code |
 |------|------|------|
 | 1 | Intro: the tick-to-trade loop | this README |
-| 2 | Borrowing Binance's brain: clone, run, quote | `part-2` |
+| 2 | Hello World | `part-2` |
 | 3 | Measure once, cut twice: telemetry | coming |
 | 4 | AWS colocation | coming |
 | 5 | Stop polling: websockets | coming |
