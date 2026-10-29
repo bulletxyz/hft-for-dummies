@@ -44,7 +44,9 @@ ip=$(terraform output -raw ip)
 echo "server: $ip"
 
 echo "waiting for first boot to finish..."
-until ssh_bot cloud-init status --wait >/dev/null 2>&1; do sleep 5; done
+# (sudo: after a reboot cloud-init can't read its own state as a normal user.
+# Any final status will do, including "degraded"; we only wait for it to end.)
+until ssh_bot 'sudo cloud-init status --wait >/dev/null 2>&1 || true'; do sleep 5; done
 
 echo "copying the code..."
 # The key never travels with the code; live runs get it from SSM.
