@@ -54,6 +54,7 @@ pub const SUBMIT_PLACE: &str = "Bullet's reply to a place (round trip)";
 pub const SUBMIT_CANCEL: &str = "Bullet's reply to a cancel (round trip)";
 pub const SUBMIT_REPLACE: &str = "Bullet's reply to a replace (round trip)";
 pub const BULLET_NETWORK: &str = "Bullet book → us (network)";
+pub const PULL: &str = "pull: decided → all cancelled";
 
 pub struct Telemetry {
     /// Microseconds, per hop.
@@ -135,6 +136,7 @@ impl Telemetry {
                     crate::events::SentKind::Place => SUBMIT_PLACE,
                     crate::events::SentKind::Replace => SUBMIT_REPLACE,
                     crate::events::SentKind::Cancel => SUBMIT_CANCEL,
+                    crate::events::SentKind::CancelAll => PULL,
                 };
                 self.record(hop, finished.saturating_duration_since(*started));
             }

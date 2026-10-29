@@ -114,7 +114,7 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 | 8 | Linux tuning | [guide](docs/parts/08-linux.md) · [`part-8`](https://github.com/bulletxyz/hft-for-dummies/tree/part-8) |
 | 9 | Optimising the hot path | [guide](docs/parts/09-hot-path.md) · [`part-9`](https://github.com/bulletxyz/hft-for-dummies/tree/part-9) |
 | 10 | Network optimisation on AWS | [guide](docs/parts/10-network.md) · [`part-10`](https://github.com/bulletxyz/hft-for-dummies/tree/part-10) |
-| 11 | Nonce management | coming |
+| 11 | Nonce management | [guide](docs/parts/11-nonces.md) · [`part-11`](https://github.com/bulletxyz/hft-for-dummies/tree/part-11) |
 
 ## Scoreboard
 

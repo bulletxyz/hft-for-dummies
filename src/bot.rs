@@ -125,6 +125,7 @@ async fn event_loop(
     // for a moment so the final numbers include those fills.
     let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
     while let Ok(Some(event)) = tokio::time::timeout_at(deadline, events.recv()).await {
+        telemetry.on_event(&event, Instant::now()); // includes the final pull's timing
         if let Event::Fill(_) = event {
             market_maker.on_event(&event, Instant::now());
         }
