@@ -1,29 +1,11 @@
-//! HFT for dummies: a market maker on Bullet that borrows its price from Binance.
-//!
-//! Start reading at `events.rs` (the vocabulary), then `bot.rs` (the loop),
-//! `market_maker.rs` (the decisions) and `strategy.rs` (the prices).
-
-mod binance;
-mod book;
-mod bot;
-mod bullet;
-mod config;
-mod cpu;
-mod events;
-mod executor;
-mod fair_value;
-mod inventory;
-mod key;
-mod market_maker;
-mod rate_limit;
-mod strategy;
-mod telemetry;
+//! The command line. The bot itself is the library (`src/lib.rs`).
 
 use std::path::PathBuf;
 
 use anyhow::{Result, bail};
 use bullet_rust_sdk::Keypair;
 use clap::{Parser, Subcommand};
+use hft_for_dummies::{bot, bullet, config, cpu};
 
 #[derive(Parser)]
 #[command(about = "A simple market maker for the HFT for dummies series")]
@@ -52,7 +34,11 @@ enum Command {
 }
 
 fn main() -> Result<()> {
+    // Log lines are written by a background thread, so the bot never waits on
+    // a slow terminal or disk. `_flush` writes out what's left when main ends.
+    let (writer, _flush) = tracing_appender::non_blocking(std::io::stdout());
     tracing_subscriber::fmt()
+        .with_writer(writer)
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )

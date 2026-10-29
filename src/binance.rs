@@ -16,12 +16,14 @@ use tokio_tungstenite::tungstenite::Message;
 use crate::events::{Bus, Event, Stamp};
 
 /// The JSON Binance sends. Prices arrive as strings so no precision is lost.
+/// We borrow them (`&str`) straight out of the message instead of copying
+/// each into a new `String`: parsing allocates nothing.
 #[derive(Deserialize)]
-struct BookTicker {
+struct BookTicker<'a> {
     #[serde(rename = "b")]
-    bid: String,
+    bid: &'a str,
     #[serde(rename = "a")]
-    ask: String,
+    ask: &'a str,
     /// When Binance sent this message (ms since 1970).
     #[serde(rename = "E")]
     event_ms: Option<u64>,
@@ -115,11 +117,11 @@ async fn run(url: String, bus: Bus) {
     }
 }
 
-fn parse(text: &str) -> anyhow::Result<Event> {
+pub fn parse(text: &str) -> anyhow::Result<Event> {
     let ticker: BookTicker = serde_json::from_str(text)?;
     Ok(Event::Reference {
-        bid: Decimal::from_str(&ticker.bid)?,
-        ask: Decimal::from_str(&ticker.ask)?,
+        bid: Decimal::from_str(ticker.bid)?,
+        ask: Decimal::from_str(ticker.ask)?,
         stamp: Stamp::now(
             ticker.event_ms.map(|ms| ms * 1000),
             ticker.match_ms.map(|ms| ms * 1000),
