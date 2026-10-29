@@ -8,7 +8,7 @@
 #   ./infra/bot/deploy.sh bench    10 minutes of bench-live.toml, then the scoreboard
 #   ./infra/bot/deploy.sh stop     stop the bot (it cancels its orders)
 #   ./infra/bot/deploy.sh chaos binance|bullet   cut one exchange off, time how fast the bot notices
-#   ./infra/bot/deploy.sh tune status|tuned|irqs|coalesce|isolate   Linux tuning, one knob at a time
+#   ./infra/bot/deploy.sh tune status|tuned|irqs|coalesce|isolate|reset   Linux tuning, one knob at a time
 #   ./infra/bot/deploy.sh destroy  stop and delete the server
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
