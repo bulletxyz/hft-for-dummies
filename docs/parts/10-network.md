@@ -28,8 +28,21 @@ organisation that runs that network. From our Tokyo server:
 
 Binance is one hop away, inside Amazon's network (AS16509): we're in the same
 data centre. Bullet's address belongs to Cloudflare (AS13335), a proxy in
-front of Bullet's servers. The `cf-ray` header names the Cloudflare site
-that handled your request:
+front of Bullet's servers. That proxy turned out to be the most interesting
+thing in the whole series.
+
+## Incident: the Dallas detour
+
+**The symptom.** From Part 4 on, our Tokyo server saw Bullet's order book
+arrive ~100 ms after Bullet stamped it, and HTTPS requests take ~220 ms. Binance,
+from the same server: 1.5 ms. It looked as if Bullet simply ran far from Tokyo.
+
+**The wrong leads.** `mtr` (above) said Cloudflare was 1.6 ms away, so it
+didn't look like the network. TCP handshakes from new servers in every Tokyo
+zone varied wildly between runs: 4 ms, 102 ms, 131 ms.
+
+**The clue.** Cloudflare stamps every response with a `cf-ray` header naming
+the site that handled it:
 
 ```sh
 curl -sI https://tradingapi.bullet.xyz/fapi/v1/time | grep -i cf-ray
@@ -37,36 +50,49 @@ curl -sI https://tradingapi.bullet.xyz/fapi/v1/time | grep -i cf-ray
 # from our Tokyo server:     cf-ray: ...-DFW   (Dallas)
 ```
 
-Dallas, at that moment. Cloudflare's address answers pings from Tokyo in
-1.6 ms (it's [anycast](https://www.cloudflare.com/learning/cdn/glossary/anycast-network/):
-every Cloudflare site announces the same address), so traffic enters
-Cloudflare in Tokyo. But Cloudflare also moves traffic between its sites
-when one is busy or costly ([Traffic Manager](https://blog.cloudflare.com/meet-traffic-manager/)),
-lower-tier plans first, and that evening our requests were being handled
-across the Pacific. Half an hour later the same server got Tokyo again:
+Dallas. A few minutes later, the same request from the same server came back
+from Tokyo (`NRT`), and we reran the bot:
 
 | Cloudflare site serving us | TCP handshake | Bullet book → us (p50) |
 |---|---|---|
 | Dallas (`DFW`) | ~131 ms | ~102 ms |
 | Tokyo (`NRT`) | 2-7 ms | **4.6 ms** |
 
-So Bullet's engine is near Tokyo after all; the extra 100 ms was the detour.
-`curl https://tradingapi.bullet.xyz/cdn-cgi/trace` prints `colo=`, the site
-serving you right now.
+Bullet's engine is near Tokyo after all. The extra 100 ms was a trip across
+the Pacific and back.
 
-Lessons:
+**Why.** Cloudflare's addresses are
+[anycast](https://www.cloudflare.com/learning/cdn/glossary/anycast-network/):
+every Cloudflare site announces the same address, so from Tokyo your packets
+enter Cloudflare in Tokyo (hence `mtr`'s 1.6 ms). But Cloudflare also moves
+traffic between its sites when one is busy or expensive
+([Traffic Manager](https://blog.cloudflare.com/meet-traffic-manager/)), and
+moves lower-tier plans first. That evening, our requests were being handled
+in Dallas. You can check where you're being served right now:
+
+```sh
+curl -s https://tradingapi.bullet.xyz/cdn-cgi/trace | grep colo
+```
+
+**What venues do about it.** No setting on our side changes Cloudflare's
+routing. Latency-sensitive venues keep a CDN in front of the public API (it
+absorbs attacks and abuse) and give vetted market makers a direct route: a
+regional host, an AWS [PrivateLink](https://aws.amazon.com/privatelink/)
+endpoint, a cross-connect. Bullet has one: a direct endpoint for whitelisted
+market makers. Point the bot at it with `api_url` in `bot.toml`. The server's
+Elastic IP (`terraform output ip`) is what gets whitelisted.
+
+**Lessons.**
 
 - **Look at the whole path, not one number.** `mtr` said 1.6 ms; the real
-  route was sometimes 130 ms. Headers and endpoints like `cf-ray` and
-  `/cdn-cgi/trace` tell you who you're actually talking to.
+  route was sometimes 130 ms. `cf-ray`, `/cdn-cgi/trace`, `via` and `server`
+  headers tell you who you're actually talking to.
 - **Variance is the enemy.** A feed that's 5 ms most of the time and 100 ms
-  some of the time is worse to trade on than a steady 20 ms: you can't tell
+  some of the time is harder to trade on than a steady 20 ms: you can't tell
   which you're getting until your quotes are stale.
-- **Some of this is the venue's call.** No setting on our server changes
-  Cloudflare's routing. Latency-sensitive venues keep trading endpoints off a
-  CDN's shared tier, or offer a direct route (a regional host, an AWS
-  [PrivateLink](https://aws.amazon.com/privatelink/) endpoint, a
-  cross-connect). Ask.
+- **Measure up to your own door.** That's why the scoreboard (Part 3) stops
+  when our order leaves: everything after it is the venue's, and can change
+  under you.
 
 ## A hostname is a pool
 
