@@ -2,9 +2,8 @@
 # Runs once, at the server's first boot.
 
 packages:
-  - gcc            # Rust needs a C linker
-  - openssl-devel  # for TLS to the exchanges (Part 9 swaps this for rustls)
-  - rsync          # deploy.sh copies the code with it
+  - gcc      # Rust needs a C linker
+  - rsync    # deploy.sh copies the code with it
 
 write_files:
   # The bot as a service: started and stopped by deploy.sh, logs in journald.
