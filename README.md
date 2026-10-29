@@ -112,17 +112,17 @@ to see the code as of that post).
 
 | Part | Post | Code |
 |------|------|------|
-| 1 | Intro: the tick-to-trade loop | this README |
+| 1 | Introduction: the tick-to-trade loop | — |
 | 2 | Hello World | `part-2` |
-| 3 | Measure once, cut twice: telemetry | coming |
-| 4 | AWS colocation | coming |
-| 5 | Stop polling: websockets | coming |
-| 6 | Optimising order execution | coming |
-| 7 | How to not get rekt by API rate limits | coming |
+| 3 | Telemetry and latency measurement | coming |
+| 4 | Colocation on AWS | coming |
+| 5 | Streaming market data | coming |
+| 6 | Order execution | coming |
+| 7 | Rate limits | coming |
 | 8 | Linux tuning | coming |
 | 9 | Optimising the hot path | coming |
-| 10 | AWS last mile | coming |
-| 11 | Bonus: nonces | coming |
+| 10 | Network optimisation on AWS | coming |
+| 11 | Nonce management | coming |
 
 ## License
 
