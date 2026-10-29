@@ -10,6 +10,7 @@ anyhow = "1"
 bs58 = "0.5"
 bullet-rust-sdk = { version = "0.0.46", default-features = false }
 clap = { version = "4", features = ["derive"] }
+core_affinity = "0.8"
 futures-util = "0.3"
 hdrhistogram = { version = "7", default-features = false }
 metrics = "0.24"
