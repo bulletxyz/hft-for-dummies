@@ -8,6 +8,7 @@ mod book;
 mod bot;
 mod bullet;
 mod config;
+mod cpu;
 mod events;
 mod executor;
 mod fair_value;
@@ -50,8 +51,7 @@ enum Command {
     },
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
@@ -64,7 +64,16 @@ async fn main() -> Result<()> {
     match cli.command.unwrap_or(Command::Run {
         config: "bot.toml".into(),
     }) {
-        Command::Run { config } => bot::run(&config, cli.live).await,
+        Command::Run { config } => {
+            let config = config::Config::load(&config)?.live(cli.live);
+            // The whole bot (apart from the Binance feed) runs on this one
+            // thread: simple to reason about, and one thing to pin.
+            cpu::pin_current_thread(config.bot_core, "bot");
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?
+                .block_on(bot::run(config))
+        }
         Command::Keygen { path, network } => keygen(&path, &network),
     }
 }

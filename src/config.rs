@@ -57,6 +57,13 @@ pub struct Config {
     /// (`infra/grafana`). Off when unset.
     #[serde(default)]
     pub metrics_port: Option<u16>,
+
+    /// Pin the Binance feed thread to this CPU core (Part 8). Unset: let the OS choose.
+    #[serde(default)]
+    pub feed_core: Option<usize>,
+    /// Pin the rest of the bot (one thread) to this CPU core.
+    #[serde(default)]
+    pub bot_core: Option<usize>,
 }
 
 impl Config {
