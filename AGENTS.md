@@ -56,6 +56,7 @@ appears.
 cargo run                     # run (dry run by default, reads bot.toml)
 cargo run -- keygen           # make bot.key for live trading
 cargo test                    # after every change
+cargo bench                   # hot-path microbenchmarks (benches/hot_path.rs)
 cargo fmt && cargo clippy --all-targets -- -D warnings   # before every commit (CI runs both)
 ```
 
