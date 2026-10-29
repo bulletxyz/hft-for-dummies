@@ -1,16 +1,11 @@
 # HFT for dummies
 
-The code behind the *HFT for dummies* series: a market maker you can run
-yourself, built up one post at a time. It quotes **SOL-USD on
-[Bullet](https://bullet.xyz)** using **Binance's SOL perp** as its price
-reference.
+Code for the *HFT for dummies* series: a market maker that quotes SOL-USD on
+[Bullet](https://app.bullet.xyz/trade?r=HFT4DUMMIES), priced off Binance's SOL
+perp. Each post is one change to this repo.
 
-Each part of the series is one change to this repo. Fork it, run it, and
-watch it get better day by day.
-
-> **Real money warning.** Market making can lose money, fast. The bot starts
-> in **dry run** (no key, no money). Only go live with an amount you are
-> happy to lose, and read [Going live](#going-live) first.
+> Market making can lose money. The bot starts in **dry run**: no key, no
+> orders.
 
 ## What we're building
 
@@ -44,71 +39,28 @@ flowchart LR
     class STATE state
 ```
 
-**Tick to trade** is the whole loop: Binance moves, we see it, we work out a
-new fair price, decide our quotes, and get them onto Bullet before anyone
-trades against our old ones. Then fills come back and change our inventory,
-which changes the next quotes. Part 3 measures every hop. p50 is the middle;
-p99 is the tail that gets you picked off.
+Binance moves, we reprice, requote on Bullet, and fills feed back into
+inventory. That loop is *tick to trade*; the series makes it fast.
 
-## Quick start with a coding agent
+## Run it
 
-Open the repo in your coding agent (Claude Code, Codex, Cursor, ...) and ask: *"Set me up and run the bot."* It installs what's missing, runs the
-bot in dry run and explains what you're seeing. When you want real money,
-ask it to go live: it walks you through the steps below and never touches
-your private key or trades without your say-so (`AGENTS.md` has its rules,
-and most agents read it automatically).
-
-The steps below are the same thing by hand.
-
-## Run it (no money)
-
-Needs [Rust](https://rust-lang.org/install.html) (any version; the repo pins
-the one it uses and cargo fetches it). Tested on Mac and Linux; Windows
-should work but you're on your own.
+Needs [Rust](https://rust-lang.org/install.html). Tested on Mac and Linux.
 
 ```sh
 cargo run
 ```
 
-The first build takes a couple of minutes. Then, after about a minute of
-warm-up:
+After a minute of warm-up it quotes, on paper:
 
 ```text
-DRY RUN: watching SOL-USD and logging the quotes we would place. No orders are sent.
-learning the Binance-to-Bullet price gap (takes about a minute)
 quoting
 paper: place side=Buy price=100.556 size=0.05
 paper: place side=Sell price=100.758 size=0.05
 bullet mid 100.656 | fair 100.6573 | our bid 100.556 ask 100.758 | position 0 | pnl $0 (fees $0)
 ```
 
-The bot is pricing SOL off Binance and quoting either side of it on Bullet,
-on paper. `FILL` means the real market traded through a paper quote. Ctrl-C
-stops it. Tweak `bot.toml` (`spread_bps`, `skew_bps`, ...) and run again.
-
-## How the code is laid out
-
-Everything that happens becomes an **event** on one queue. The **market
-maker** answers events with **intents** ("place this", "cancel that"), and an
-**executor** carries them out. Each part of the series changes one box and
-leaves the rest alone.
-
-| File | Box in the diagram | What it does |
-|------|--------------------|--------------|
-| `src/events.rs` | arrows | The vocabulary: every `Event` in and `Intent` out. Start here. |
-| `src/binance.rs` | Binance, Receive + parse | Binance best bid/ask → events |
-| `src/bullet.rs` | Bullet, Bullet book, Acks + fills | Bullet book and our fills → events; sends orders |
-| `src/book.rs` | Bullet book | Keeps our copy of the Bullet order book in sync |
-| `src/fair_value.rs` | Fair price | Binance mid + the average Binance→Bullet gap |
-| `src/strategy.rs` | Strategy | Where to put the bid and ask: spread, skew, limits |
-| `src/market_maker.rs` | Strategy | The decisions: events in, intents out. No network, fully tested |
-| `src/inventory.rs` | Inventory / state | Position and profit, changed only by fills |
-| `src/key.rs` | | Reads `bot.key`, whatever form you pasted it in |
-| `src/executor.rs` | Executor | Live (real orders) or paper (dry run) |
-| `src/bot.rs` | the loop | Wires it all together |
-| `bot.toml` | | Every setting, with comments |
-
-Run the tests any time with `cargo test`.
+Settings are in `bot.toml`. Using a coding agent? Ask it to *"set me up and
+run the bot"*; `AGENTS.md` has its instructions.
 
 ## Going live
 
@@ -126,24 +78,37 @@ Limits in `bot.toml`: at most 0.1 SOL held, stops after a $2 loss. Stopping
 doesn't close your position, and the bot cancels any SOL-USD orders you
 place by hand on the same account.
 
+## The code
+
+Feeds turn the world into **events**, the market maker answers with
+**intents**, an executor carries them out.
+
+| File | |
+|------|--|
+| `src/events.rs` | Every `Event` in and `Intent` out. Start here. |
+| `src/bot.rs` | The loop that wires it together |
+| `src/binance.rs`, `src/bullet.rs` | Feeds; `bullet.rs` also sends orders |
+| `src/book.rs` | Our copy of the Bullet order book |
+| `src/fair_value.rs` | Binance mid + average Binance→Bullet gap |
+| `src/strategy.rs` | Bid and ask prices: spread, skew, limits |
+| `src/market_maker.rs` | Events in, intents out. No I/O, fully tested |
+| `src/inventory.rs` | Position and PnL, changed only by fills |
+| `src/executor.rs` | Live orders, or paper ones in dry run |
+
 ## Troubleshooting
 
-| You see | It means |
-|---------|----------|
-| `command not found: cargo` | [Install Rust](https://rust-lang.org/install.html), then open a new terminal. |
-| `...that address isn't a delegate` | The key in `bot.key` isn't a delegate on your account yet. Approve it in the Bullet app, check you pasted the **private** key (not the address), and check `network` in `bot.toml`. |
-| `reading the key file bot.key` | There's no `bot.key` in this folder. See Going live, step 2. |
-| `order_size ... is below ...'s minimum` or `must be a multiple of` | Change `order_size` in `bot.toml` to a size the market accepts (SOL-USD: steps of 0.01). |
-| `placing orders failed` (repeatedly) | Usually not enough margin: deposit more, raise the account's leverage, or lower `order_size`. Nothing is lost; the bot just isn't quoting. |
-| `cancel all failed` | Couldn't confirm our orders were cancelled. Check the Bullet app and cancel any SOL-USD orders by hand. |
-| `position bigger than max_position` | The account already holds more SOL-USD than the bot ever would (you traded it by hand?). Close it or raise `max_position`. |
-| Stuck on `learning the Binance-to-Bullet price gap` for minutes | Binance isn't reachable from your network (some countries block it). Look for `binance: connect failed`. |
+| You see | Fix |
+|---------|-----|
+| `isn't a delegate` | Confirm the delegation link from `keygen`; check `network` in `bot.toml`. |
+| `placing orders failed` | Usually not enough margin: deposit more or lower `order_size`. |
+| `cancel all failed` | Cancel any SOL-USD orders in the Bullet app by hand. |
+| `position bigger than max_position` | You hold more SOL-USD than the bot would. Close it or raise `max_position`. |
+| Stuck warming up | Binance is unreachable from your network (`binance: connect failed`). |
 
 ## Following along
 
-Each part lands on `master` as one PR, tagged `part-N`. Pull the latest
-(`git pull`, or from `upstream` in a fork), or check out any part with
-`git checkout part-3`.
+Each part lands on `master` as one PR, tagged `part-N` (`git checkout part-3`
+to see the code as of that post).
 
 | Part | Post | Code |
 |------|------|------|
