@@ -39,9 +39,13 @@ Confirm the amount first.
   run `cargo run --release -- keygen` (the key stays on their disk) and give
   them the printed link to approve. An address (base58, ~44 chars) is public
   and fine to see; the private key is not.
-- **Money.** About $20 USDC on the account at 1x (or $10 with 2-3x account
-  leverage) covers the defaults. The user deposits it in the Bullet app,
-  e.g. by bridging USDC from Solana.
+- **Account and money.** The user needs a Bullet account with about $20 USDC
+  (1x; or $10 with 2-3x account leverage). If they don't have one, walk them
+  through the README's Going live step 1: a Solana wallet with USDC, sign up
+  with the series' referral link https://app.bullet.xyz/trade?r=HFT4DUMMIES
+  (code `HFT4DUMMIES`), then bridge the USDC in. They do this in the app
+  themselves; ask for their account address afterwards so you can check the
+  balance read-only.
 - **Before starting,** check the account read-only (no key needed; `ADDR` is
   the account's address, `KEY` the delegate's address):
 

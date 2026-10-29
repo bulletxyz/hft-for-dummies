@@ -137,12 +137,21 @@ Run the tests any time with `cargo test`.
 
 Only do this once dry run makes sense to you.
 
-1. **Make a Bullet account** at [app.bullet.xyz](https://app.bullet.xyz) and
-   deposit about **$20 of USDC** (for example, bridge it in from Solana in
-   the app). With the default settings the bot holds at
-   most 0.1 SOL (about $10) plus two resting orders, and $20 covers that at
-   1x leverage. To start with $10, set the account's leverage to 2-3x in the
-   app; the bot's own limits stay the same.
+1. **Set up a Bullet account with about $20 of USDC.**
+   1. Get a Solana wallet (e.g. [Phantom](https://phantom.com)) holding about
+      **$20 of USDC** on Solana, plus a little SOL for Solana transaction
+      fees.
+   2. Open Bullet with the series' referral link,
+      **[app.bullet.xyz/trade?r=HFT4DUMMIES](https://app.bullet.xyz/trade?r=HFT4DUMMIES)**
+      (code `HFT4DUMMIES`), and connect your wallet. Your wallet's address is
+      your Bullet account.
+   3. Deposit: bridge the USDC from Solana into Bullet in the app. When the
+      balance shows up in Bullet, you're funded.
+
+   Why $20: with the default settings the bot holds at most 0.1 SOL (about
+   $10) plus two resting orders, and $20 covers that at 1x leverage. To start
+   with $10, set the account's leverage to 2-3x in the app; the bot's own
+   limits stay the same.
 2. **Give the bot a delegate key.** A delegate key can place and cancel
    orders for your account but can't withdraw anything, so your funds stay
    put even if the key leaks. Either:
