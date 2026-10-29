@@ -1,0 +1,27 @@
+# The bot's settings. Every number here is a placeholder to learn with,
+# not a tuned value. Change them and watch what happens.
+
+network = "mainnet"
+
+# true: watch the market and log the quotes we WOULD place. No key, no money.
+# Set to false only after reading "Going live" in the README.
+dry_run = true
+key_file = "bot.key"
+
+# Quote SOL on Bullet, using Binance's SOL perp as the price reference.
+symbol = "SOL-USD"
+binance_symbol = "SOLUSDT"
+
+# --- Strategy ---
+spread_bps = "10"             # quote 0.10% either side of fair value
+order_size = "0.05"           # SOL per order (~$5). SOL-USD's minimum is 0.01
+max_position = "0.1"          # never hold more than 0.1 SOL (~$10) long or short
+skew_bps = "5"                # at max position, lean both quotes 0.05% to unwind
+requote_threshold_bps = "3"   # replace a quote once it is 0.03% off where we want it
+min_requote_ms = 500          # but at most twice a second
+
+# --- Safety ---
+max_loss_usd = "2"            # stop quoting for this run after losing $2 (fees included)
+reference_stale_secs = 5      # no Binance price for 5s: pull quotes
+book_stale_secs = 10          # no Bullet book update for 10s: pull quotes
+basis_halflife_secs = 300     # average the Binance-Bullet gap over ~5 minutes
