@@ -30,8 +30,11 @@ seconds, the connection is dead: drop it and reconnect.
 - Bullet (`src/bullet.rs`): the SDK's managed socket reconnects after an
   `idle_timeout` (default 60 s; we set 3 s) and we ping it every second.
 
-Why 3 seconds? Long enough that one slow pong isn't a false alarm, short
-enough that we don't quote on a dead feed for long. Remember the
+Why 3 seconds? Long enough that one slow pong isn't a false alarm on a
+datacentre network (the Tokyo server had none), short enough that we don't
+quote on a dead feed for long. On home wifi you may see the odd needless
+reconnect; that's harmless: the bot pulls its quotes, reconnects, and
+carries on. Remember the
 stale-price guard pulls our quotes even sooner (after `reference_stale_secs`),
 so we're never quoting blind while we wait.
 
