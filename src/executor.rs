@@ -67,7 +67,7 @@ impl Executor for LiveExecutor {
         if !places.is_empty()
             && let Err(e) = self.bullet.place(&places).await
         {
-            tracing::warn!("placing orders failed: {e}");
+            tracing::warn!("placing orders failed (often: not enough margin): {e}");
             // They may have landed anyway (we just never heard back). Make sure they're gone.
             let ids: Vec<u64> = places.iter().map(|o| o.client_id).collect();
             let _ = self.bullet.cancel(&ids).await;

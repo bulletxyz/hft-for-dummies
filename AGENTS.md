@@ -10,7 +10,7 @@ Two jobs come up. Read the section for yours.
 ## Helping someone set up and run the bot
 
 Follow the README: it is the setup guide, for people and agents alike (Run
-it, Going live, Troubleshooting). Don't restate its steps to the user from
+it, Going live). Don't restate its steps to the user from
 memory; read them from there. If a step there is wrong or unclear, fix the
 README. What follows is only what an agent needs on top.
 

@@ -95,16 +95,6 @@ Feeds turn the world into **events**, the market maker answers with
 | `src/inventory.rs` | Position and PnL, changed only by fills |
 | `src/executor.rs` | Live orders, or paper ones in dry run |
 
-## Troubleshooting
-
-| You see | Fix |
-|---------|-----|
-| `isn't a delegate` | Confirm the delegation link from `keygen`; check `network` in `bot.toml`. |
-| `placing orders failed` | Usually not enough margin: deposit more or lower `order_size`. |
-| `cancel all failed` | Cancel any SOL-USD orders in the Bullet app by hand. |
-| `position bigger than max_position` | You hold more SOL-USD than the bot would. Close it or raise `max_position`. |
-| Stuck warming up | Binance is unreachable from your network (`binance: connect failed`). |
-
 ## Following along
 
 Each part lands on `master` as one PR, tagged `part-N` (`git checkout part-3`
