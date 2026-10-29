@@ -66,8 +66,9 @@ The steps below are the same thing by hand.
 
 ## Run it (no money)
 
-Needs Mac or Linux and [Rust](https://rust-lang.org/install.html) (any
-version; the repo pins the one it uses and cargo fetches it).
+Needs [Rust](https://rust-lang.org/install.html) (any version; the repo pins
+the one it uses and cargo fetches it). Tested on Mac and Linux; Windows
+should work but you're on your own.
 
 ```sh
 git clone https://github.com/bulletxyz/hft-for-dummies.git   # or your fork
