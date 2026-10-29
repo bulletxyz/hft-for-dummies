@@ -9,63 +9,39 @@ Two jobs come up. Read the section for yours.
 
 ## Helping someone set up and run the bot
 
+Follow the README: it is the setup guide, for people and agents alike (Run
+it, Going live, Troubleshooting). Don't restate its steps to the user from
+memory; read them from there. If a step there is wrong or unclear, fix the
+README. What follows is only what an agent needs on top.
+
 The user is probably new to Rust, trading, or both. Go one step at a time,
-say what each command does before running it, and explain the output.
+say what each command does before running it, and explain the log as it
+appears.
 
-### Dry run (no money, no key)
-
-1. `cargo --version`. If it's missing, Rust isn't installed: give the user the
-   rustup command from the README to run themselves (it changes their shell),
-   then ask them to open a new terminal.
-2. `cargo run --release`. The first build takes a few minutes. Then explain the
-   log as it appears: both venues connect, about a minute of "learning the
-   Binance-to-Bullet price gap", then `quoting` and `paper: place ...` lines and
-   a summary every 10 seconds. `FILL` lines mean the real market traded through
-   a paper quote.
-3. Stop it with Ctrl-C (or SIGINT). Never SIGKILL a live bot: it would skip
-   cancelling its orders.
-
-Let them change `bot.toml` and rerun; that's the point of the exercise.
-
-### Going live: only when the user says so
-
-Going live risks real money. Do not set `dry_run = false`, start a live run,
-or suggest it is the next step unless the user has asked to trade for real.
-Confirm the amount first.
-
-- **Keys.** Never ask the user to paste a private key into the chat, and never
-  print, `cat`, copy, or commit `bot.key`. Either the user pastes the key from
-  the Bullet app's Delegate accounts page into `bot.key` themselves, or you
-  run `cargo run --release -- keygen` (the key stays on their disk) and give
-  them the printed link to approve. An address (base58, ~44 chars) is public
-  and fine to see; the private key is not.
-- **Account and money.** The user needs a Bullet account with about $20 USDC
-  (1x; or $10 with 2-3x account leverage). If they don't have one, walk them
-  through the README's Going live step 1: a Solana wallet with USDC, sign up
-  with the series' referral link https://app.bullet.xyz/trade?r=HFT4DUMMIES
-  (code `HFT4DUMMIES`), then bridge the USDC in. They do this in the app
-  themselves; ask for their account address afterwards so you can check the
-  balance read-only.
-- **Before starting,** check the account read-only (no key needed; `ADDR` is
-  the account's address, `KEY` the delegate's address):
+- **Going live is the user's call.** Don't set `dry_run = false`, start a live
+  run, or push them towards it unless they've asked to trade for real.
+  Confirm the amount first. Prefer a copy of the config for live
+  (`cargo run --release -- run my-live.toml`) so `bot.toml` stays on dry run.
+- **Keys.** Never ask for a private key in the chat, and never print, `cat`,
+  copy, or commit `bot.key`. The user pastes it into the file themselves, or
+  you run `keygen` and hand them the link. Addresses are public and fine.
+- **The Bullet app is the user's.** They create the account, deposit and
+  approve delegates there. Ask for their account address so you can check
+  things read-only (no key needed; `ADDR` the account, `KEY` the delegate's
+  address):
 
   ```sh
   U=https://tradingapi.bullet.xyz
   curl -s "$U/api/v1/delegateOf?address=KEY"                     # {"parent": ADDR} once delegated
-  curl -s "$U/fapi/v3/account?address=ADDR"                      # balances, positions
+  curl -s "$U/fapi/v3/account?address=ADDR"                      # balance, positions
   curl -s "$U/fapi/v1/openOrders?address=ADDR&symbol=SOL-USD"    # resting orders
   ```
 
-  Warn the user if the account holds a SOL-USD position or orders: the bot
-  cancels every SOL-USD order on start and refuses to quote if the position is
-  bigger than `max_position`.
-- **Run it** with `dry_run = false`. Prefer a copy of the config
-  (`cargo run --release -- run my-live.toml`) so `bot.toml` stays on dry run.
-- **While it runs,** watch for `quoting`, then two orders about `spread_bps`
-  either side of the mid (the user can see them in the Bullet app). Warnings
-  worth explaining are in the README's Troubleshooting section.
-- **After stopping,** re-run the read-only checks: no open orders should remain.
-  Any position stays open; tell the user and let them decide.
+  Run these before a live start (warn if there's already a SOL-USD position or
+  orders) and after stopping (no orders should remain; any position is the
+  user's to close or keep).
+- **Stopping.** Ctrl-C or SIGINT, so the bot cancels its orders. Never
+  SIGKILL a live bot.
 
 ## Working on the code
 
