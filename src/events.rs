@@ -111,6 +111,7 @@ impl Stamp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SentKind {
     Place,
+    Replace,
     Cancel,
 }
 
@@ -130,6 +131,11 @@ pub struct Fill {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Intent {
     Place(Order),
+    /// Swap a resting order for a new one in a single request.
+    Replace {
+        old: u64,
+        new: Order,
+    },
     Cancel {
         client_id: u64,
     },

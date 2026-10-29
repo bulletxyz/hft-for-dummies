@@ -18,9 +18,9 @@ use anyhow::{Context, Result, anyhow, bail};
 use bullet_rust_sdk::codegen::types::Filter;
 use bullet_rust_sdk::types::{OrderUpdateData, OrderUpdateMessage};
 use bullet_rust_sdk::{
-    CancelOrderArgs, Client, ClientOrderId, Keypair, ManagedWsConfig, MarketId, Network,
-    NewOrderArgs, OrderType, OrderbookDepth, PositiveDecimal, ServerMessage, Side as BulletSide,
-    Topic, UnixTimestampMicros, UserActionDiscriminants, WsEvent,
+    Client, ClientOrderId, Keypair, ManagedWsConfig, MarketId, Network, NewOrderArgs, OrderIdKind,
+    OrderType, OrderbookDepth, PositiveDecimal, ServerMessage, Side as BulletSide, Topic,
+    UnixTimestampMicros, UserActionDiscriminants, WsEvent,
 };
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -59,7 +59,6 @@ pub async fn connect(config: &Config, bus: Bus) -> Result<Bullet> {
         .maybe_keypair(keypair)
         .user_actions(vec![
             UserActionDiscriminants::CancelAndPlaceOrders,
-            UserActionDiscriminants::CancelOrders,
             UserActionDiscriminants::CancelMarketOrders,
         ])
         .build()
@@ -150,48 +149,25 @@ pub async fn connect(config: &Config, bus: Bus) -> Result<Bullet> {
 }
 
 impl Bullet {
-    /// Place post-only orders. Post-only means "rest on the book or be
-    /// rejected", so we only ever earn the spread, never pay to cross it.
-    /// Each expires after `quote_ttl_secs`: if the bot dies, its quotes stop
+    /// In one request: cancel these orders (by client id) and place these.
+    /// A cancel for an order that's already gone (it just filled) is skipped,
+    /// not an error. New orders are post-only ("rest on the book or be
+    /// rejected", so we only ever earn the spread, never pay to cross it), and
+    /// each expires after `quote_ttl_secs`: if the bot dies, its quotes stop
     /// being fillable on their own.
-    pub async fn place(&self, orders: &[Order]) -> Result<()> {
-        let orders = orders
+    pub async fn cancel_and_place(&self, cancels: &[u64], places: &[Order]) -> Result<()> {
+        let cancels = cancels
             .iter()
-            .map(|o| {
-                Ok(NewOrderArgs {
-                    price: PositiveDecimal::try_from(o.price)
-                        .map_err(|e| anyhow!("price {}: {e}", o.price))?,
-                    size: PositiveDecimal::try_from(o.size)
-                        .map_err(|e| anyhow!("size {}: {e}", o.size))?,
-                    side: match o.side {
-                        Side::Buy => BulletSide::Bid,
-                        Side::Sell => BulletSide::Ask,
-                    },
-                    order_type: OrderType::PostOnly,
-                    reduce_only: false,
-                    client_order_id: Some(ClientOrderId(o.client_id)),
-                    pending_tpsl_pair: None,
-                })
-            })
+            .map(|&id| OrderIdKind::Client(ClientOrderId(id)))
+            .collect();
+        let places = places
+            .iter()
+            .map(new_order_args)
             .collect::<Result<Vec<_>>>()?;
         let expiry = SystemTime::now().duration_since(UNIX_EPOCH)? + self.quote_ttl;
         let expiry = UnixTimestampMicros::from_micros(i64::try_from(expiry.as_micros())?);
         self.client
-            .cancel_and_place_orders(self.market_id, vec![], orders, Some(expiry), None)
-            .await?;
-        Ok(())
-    }
-
-    pub async fn cancel(&self, client_ids: &[u64]) -> Result<()> {
-        let cancels = client_ids
-            .iter()
-            .map(|&id| CancelOrderArgs {
-                order_id: None,
-                client_order_id: Some(ClientOrderId(id)),
-            })
-            .collect();
-        self.client
-            .cancel_orders(self.market_id, cancels, None)
+            .cancel_and_place_orders(self.market_id, cancels, places, Some(expiry), None)
             .await?;
         Ok(())
     }
@@ -241,6 +217,22 @@ impl Bullet {
             .find(|p| p.symbol == self.symbol)
             .map_or(Decimal::ZERO, |p| p.position_amt))
     }
+}
+
+/// One of our orders as Bullet wants it: post-only, tagged with our client id.
+fn new_order_args(o: &Order) -> Result<NewOrderArgs> {
+    Ok(NewOrderArgs {
+        price: PositiveDecimal::try_from(o.price).map_err(|e| anyhow!("price {}: {e}", o.price))?,
+        size: PositiveDecimal::try_from(o.size).map_err(|e| anyhow!("size {}: {e}", o.size))?,
+        side: match o.side {
+            Side::Buy => BulletSide::Bid,
+            Side::Sell => BulletSide::Ask,
+        },
+        order_type: OrderType::PostOnly,
+        reduce_only: false,
+        client_order_id: Some(ClientOrderId(o.client_id)),
+        pending_tpsl_pair: None,
+    })
 }
 
 /// We ping each connection every second and Bullet answers every ping, so a
