@@ -16,6 +16,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
+use std::num::NonZeroU32;
 use std::time::{Duration, Instant};
 
 use hdrhistogram::Histogram;
@@ -335,11 +336,14 @@ impl Skew {
 }
 
 /// Serve every hop to Prometheus at `http://127.0.0.1:{port}/metrics`, as
-/// p50 and p99 over the last minute, for Grafana to draw (`infra/grafana`).
+/// p50 and p99 over the last five minutes (so a tail has enough samples), plus
+/// a running sum and count for averages, for Grafana to draw (`infra/grafana`).
 pub fn serve_metrics(port: u16) -> anyhow::Result<()> {
     PrometheusBuilder::new()
         .with_http_listener(([127, 0, 0, 1], port))
         .set_quantiles(&[0.5, 0.99])?
+        .set_bucket_duration(Duration::from_secs(60))?
+        .set_bucket_count(NonZeroU32::new(5).expect("5 is not zero"))
         .install()?;
     tracing::info!("metrics for Grafana at http://127.0.0.1:{port}/metrics");
     Ok(())

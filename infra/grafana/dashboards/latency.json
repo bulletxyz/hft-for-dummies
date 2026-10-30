@@ -14,12 +14,12 @@
       "id": 1,
       "type": "bargauge",
       "title": "One trip, on average over the last minute",
-      "description": "Average time of each step over the last minute, on one scale. Averages add up, so the five steps sum to roughly the end-to-end bar (steps 1-3 average every message, 4-5 only the orders end-to-end times). The percentiles are in the charts below.",
+      "description": "Average time of each step over the last minute, on one scale. Averages add up, so 'sum of steps' should match end-to-end (steps 1-3 average every message, 4-5 only the orders end-to-end times, so it's close, not exact). The percentiles are in the charts below.",
       "gridPos": {
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 12
+        "h": 14
       },
       "datasource": {
         "type": "prometheus",
@@ -34,6 +34,15 @@
           "expr": "rate(hft_hop_seconds_sum{hop=\"END-TO-END: Binance update → our order open\"}[1m]) / rate(hft_hop_seconds_count{hop=\"END-TO-END: Binance update → our order open\"}[1m]) > 0",
           "legendFormat": "end-to-end",
           "refId": "end-to-end"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "scalar(rate(hft_hop_seconds_sum{hop=\"inside Binance (match → sent)\"}[1m]) / rate(hft_hop_seconds_count{hop=\"inside Binance (match → sent)\"}[1m])) + scalar(rate(hft_hop_seconds_sum{hop=\"binance→us (network)\"}[1m]) / rate(hft_hop_seconds_count{hop=\"binance→us (network)\"}[1m])) + scalar(rate(hft_hop_seconds_sum{hop=\"queue (received → handled)\"}[1m]) / rate(hft_hop_seconds_count{hop=\"queue (received → handled)\"}[1m])) + scalar(rate(hft_hop_seconds_sum{hop=\"tick-to-trade (our code)\"}[1m]) / rate(hft_hop_seconds_count{hop=\"tick-to-trade (our code)\"}[1m])) + scalar(rate(hft_hop_seconds_sum{hop=\"order-to-live (send + route + Bullet)\"}[1m]) / rate(hft_hop_seconds_count{hop=\"order-to-live (send + route + Bullet)\"}[1m]))",
+          "legendFormat": "sum of steps 1-5",
+          "refId": "sum"
         },
         {
           "datasource": {
@@ -110,12 +119,12 @@
       "id": 2,
       "type": "timeseries",
       "title": "End-to-end: Binance update → our order open on Bullet",
-      "description": "The headline. p50 is typical, p99 is the slow 1% that gets you picked off.",
+      "description": "The headline over time. p50 is the typical order; p99 the slow 1%, when you get picked off. Gaps are minutes with no timed order. Percentiles are over the last 5 minutes.",
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 14,
         "w": 12,
-        "h": 9
+        "h": 14
       },
       "datasource": {
         "type": "prometheus",
@@ -154,8 +163,11 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "tooltip": {
           "mode": "multi"
@@ -166,12 +178,12 @@
       "id": 3,
       "type": "timeseries",
       "title": "The steps over time (p50, log scale)",
-      "description": "From microseconds (our code) to milliseconds (the network): log scale so all fit.",
+      "description": "Each step's p50 on a log scale, so microseconds (our code, bottom) and milliseconds (the network, top) fit on one chart. Percentiles are over the last 5 minutes.",
       "gridPos": {
         "x": 12,
-        "y": 12,
+        "y": 14,
         "w": 12,
-        "h": 9
+        "h": 14
       },
       "datasource": {
         "type": "prometheus",
@@ -241,8 +253,11 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "tooltip": {
           "mode": "multi"
@@ -253,12 +268,12 @@
       "id": 4,
       "type": "timeseries",
       "title": "Tick-to-trade: our code",
-      "description": "Tick received → order out. Microseconds.",
+      "description": "Our reaction to a Binance update, in microseconds. Next to the milliseconds above, it's almost nothing. Percentiles are over the last 5 minutes.",
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 28,
         "w": 12,
-        "h": 8
+        "h": 10
       },
       "datasource": {
         "type": "prometheus",
@@ -297,8 +312,11 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "tooltip": {
           "mode": "multi"
@@ -309,12 +327,12 @@
       "id": 5,
       "type": "timeseries",
       "title": "Queue: waiting before we look at an event",
-      "description": "Jitter shows up here first.",
+      "description": "Usually near zero (p50), but the p99 shows events waiting behind a slow order request: the cost of waiting, which Part 6 removes. Percentiles are over the last 5 minutes.",
       "gridPos": {
         "x": 12,
-        "y": 21,
+        "y": 28,
         "w": 12,
-        "h": 8
+        "h": 10
       },
       "datasource": {
         "type": "prometheus",
@@ -353,8 +371,11 @@
       },
       "options": {
         "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "tooltip": {
           "mode": "multi"
