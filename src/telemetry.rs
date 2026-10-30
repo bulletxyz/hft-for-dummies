@@ -25,22 +25,32 @@ use crate::events::{Event, Stamp};
 /// How often to print the table.
 const REPORT_EVERY: Duration = Duration::from_secs(30);
 
-/// The hops we time, in loop order.
-pub const BINANCE_MATCH_TO_SEND: &str = "binance: match → sent (inside Binance)";
-pub const BINANCE_NETWORK: &str = "binance: sent → received (network)";
-pub const BULLET_NETWORK: &str = "bullet book: sent → received (network)";
-pub const QUEUE: &str = "bot: received → handled (queue)";
-pub const DECIDE: &str = "bot: decide (update + requote)";
-/// Our reaction: from receiving the tick to handing the order to the executor.
-pub const TICK_TO_TRADE: &str = "TICK-TO-TRADE: tick received → order out";
-/// From our request leaving until Bullet's matching engine opens the order
-/// (its own timestamp): the route there and Bullet's processing.
-pub const ORDER_TO_LIVE: &str = "bullet: order sent → open (Bullet's clock)";
 /// The headline: from the Binance trade (or book change) that moved our price
 /// until Bullet opens our new order. How long our quote lags the market.
 pub const END_TO_END: &str = "END-TO-END: Binance trade → our order open";
-pub const SUBMIT_PLACE: &str = "bullet: place sent → reply";
-pub const SUBMIT_CANCEL: &str = "bullet: cancel sent → reply";
+
+// The steps of that trip, in order. They roughly add up to it.
+pub const BINANCE_MATCH_TO_SEND: &str = "inside Binance (match → sent)";
+pub const BINANCE_NETWORK: &str = "binance→us (network)";
+pub const QUEUE: &str = "queue (received → handled)";
+/// Our reaction: from receiving the tick to handing the order to the executor.
+pub const TICK_TO_TRADE: &str = "tick-to-trade (our code)";
+/// From our request leaving until Bullet's matching engine opens the order
+/// (its own timestamp): the route there and Bullet's processing.
+pub const ORDER_TO_LIVE: &str = "order-to-live (route + Bullet)";
+const TRIP: [&str; 5] = [
+    BINANCE_MATCH_TO_SEND,
+    BINANCE_NETWORK,
+    QUEUE,
+    TICK_TO_TRADE,
+    ORDER_TO_LIVE,
+];
+
+// Also measured, overlapping the trip or off it.
+pub const DECIDE: &str = "decide (part of tick-to-trade)";
+pub const SUBMIT_PLACE: &str = "Bullet's reply to a place (round trip)";
+pub const SUBMIT_CANCEL: &str = "Bullet's reply to a cancel (round trip)";
+pub const BULLET_NETWORK: &str = "Bullet book → us (network)";
 
 pub struct Telemetry {
     /// Microseconds, per hop.
@@ -235,23 +245,42 @@ impl Telemetry {
         }
     }
 
-    /// p50 / p99 / max per hop, in milliseconds.
-    pub fn table(&self) -> String {
-        let mut out = format!(
-            "  {:<42} {:>7} {:>9} {:>9} {:>9}\n",
-            "hop", "count", "p50 ms", "p99 ms", "max ms"
-        );
-        for (hop, h) in &self.hops {
+    fn row(&self, out: &mut String, label: &str, hop: &str) {
+        if let Some(h) = self.hops.get(hop) {
             let ms = |us: u64| us as f64 / 1000.0;
             let _ = writeln!(
                 out,
-                "  {:<42} {:>7} {:>9.3} {:>9.3} {:>9.3}",
-                hop,
+                "  {:<46} {:>7} {:>9.3} {:>9.3} {:>9.3}",
+                label,
                 h.len(),
                 ms(h.value_at_quantile(0.5)),
                 ms(h.value_at_quantile(0.99)),
                 ms(h.max())
             );
+        }
+    }
+
+    /// p50 / p99 / max per hop, in milliseconds.
+    pub fn table(&self) -> String {
+        let mut out = format!(
+            "  {:<46} {:>7} {:>9} {:>9} {:>9}\n",
+            "", "count", "p50 ms", "p99 ms", "max ms"
+        );
+        self.row(&mut out, END_TO_END, END_TO_END);
+        for (i, hop) in TRIP.iter().enumerate() {
+            self.row(&mut out, &format!("  {} {hop}", i + 1), hop);
+        }
+        let mut others = self
+            .hops
+            .keys()
+            .filter(|hop| **hop != END_TO_END && !TRIP.contains(hop))
+            .peekable();
+        if others.peek().is_some() {
+            let others: Vec<&str> = others.copied().collect();
+            let _ = writeln!(out, "  also measured:");
+            for hop in others {
+                self.row(&mut out, &format!("  {hop}"), hop);
+            }
         }
         if self.clock_behind > 0 {
             let _ = writeln!(
@@ -412,5 +441,39 @@ mod tests {
         let p50 = p50_us(&t, ORDER_TO_LIVE);
         // Rebuilding a wall-clock time from an `Instant` can be a microsecond off.
         assert!((7_990..9_000).contains(&p50), "{p50}");
+    }
+
+    #[test]
+    fn the_table_follows_one_trip_in_order() {
+        let mut t = Telemetry::new();
+        for hop in [
+            SUBMIT_PLACE,
+            DECIDE,
+            ORDER_TO_LIVE,
+            TICK_TO_TRADE,
+            QUEUE,
+            BINANCE_NETWORK,
+            BINANCE_MATCH_TO_SEND,
+            END_TO_END,
+        ] {
+            t.record_us(hop, 1_000);
+        }
+        let table = t.table();
+        let at = |label: &str| {
+            table
+                .find(label)
+                .unwrap_or_else(|| panic!("{label}:\n{table}"))
+        };
+        let order = [
+            at(END_TO_END),
+            at(&format!("1 {BINANCE_MATCH_TO_SEND}")),
+            at(&format!("2 {BINANCE_NETWORK}")),
+            at(&format!("3 {QUEUE}")),
+            at(&format!("4 {TICK_TO_TRADE}")),
+            at(&format!("5 {ORDER_TO_LIVE}")),
+            at("also measured"),
+            at(SUBMIT_PLACE),
+        ];
+        assert!(order.windows(2).all(|w| w[0] < w[1]), "{table}");
     }
 }

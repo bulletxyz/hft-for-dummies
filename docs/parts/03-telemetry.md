@@ -7,22 +7,30 @@ every hop of the tick-to-trade loop and prints a table. Code:
 
 ## How it works
 
-Every market event now carries a **stamp** (`src/events.rs`): when the exchange
-says it sent the message, and when we received it. The live executor reports
-when it sent each order and when Bullet accepted it, and Bullet's websocket
-echo tells us when the order is actually on the book. `src/telemetry.rs` turns
-those into one [HDR histogram](https://hdrhistogram.github.io/HdrHistogram/)
-per hop and logs the table every 30 seconds and on exit:
+Every market event now carries a **stamp** (`src/events.rs`): when the
+exchange says it happened and sent it, and when we received it. The live
+executor reports when each request went out and when Bullet replied, and
+Bullet's order updates carry its matching engine's timestamp for our order
+opening. `src/telemetry.rs` turns the gaps between those moments into one
+[HDR histogram](https://hdrhistogram.github.io/HdrHistogram/) per hop and logs
+a table every 30 seconds and on exit. It follows one trip around the loop, in
+order:
 
-| Hop | What it is | Whose clock |
+| Step | What it is | Clocks |
 |---|---|---|
-| binance: match → sent | Binance's own processing (`E` − `T` in its message) | Binance's |
-| binance / bullet book: sent → received | the network | theirs vs ours |
-| bot: received → handled | waiting in our queue | ours |
-| bot: decide | updating state and working out quotes | ours |
-| bot: tick received → orders sent | our whole reaction time | ours |
-| bullet: place/cancel sent → accepted | request round trip to Bullet | ours |
-| bullet: place sent → live on book | until Bullet's websocket confirms the order rests | ours |
+| **end-to-end** | Binance trade → our order open on Bullet: the total | Binance's, Bullet's |
+| 1 inside Binance | Binance matching a trade → sending it to us | Binance's |
+| 2 binance→us | the network from Binance | Binance's, ours |
+| 3 queue | waiting in our queue before we look at it | ours |
+| 4 tick-to-trade | our code: tick in → order out | ours |
+| 5 order-to-live | the route to Bullet, and Bullet opening the order | ours, Bullet's |
+
+The steps roughly add up to end-to-end, not exactly: steps 1-3 count every
+Binance message, the rest only the ones that led to an order, and percentiles
+of parts never quite sum to the percentile of the whole. Under "also
+measured", the table adds rows that overlap the trip or sit off it: Bullet's
+reply to each request (a round trip, so it runs past step 5), the part of
+tick-to-trade spent deciding, and how fast Bullet's own book reaches us.
 
 **p99 is what costs you money.** p50 is the typical case. p99 is the slowest
 1%, and that's when you get picked off: the moment the price jumps is exactly
@@ -123,18 +131,18 @@ A 4-minute dry run on a laptop, debug vs release, side by side:
 
 | Hop | debug p50 / p99 | release p50 / p99 |
 |---|---|---|
-| bot: decide | 5 µs / 50 µs | 1 µs / 20 µs |
-| bot: tick received → orders sent | 24 µs / 230 µs | 7 µs / 134 µs |
-| bot: received → handled | 10 µs / 200 µs | 10 µs / 300 µs |
-| binance: match → sent | ~0 / 31 ms | ~0 / 31 ms |
+| decide | 5 µs / 50 µs | 1 µs / 20 µs |
+| tick-to-trade | 24 µs / 230 µs | 7 µs / 134 µs |
+| queue | 10 µs / 200 µs | 10 µs / 300 µs |
+| inside Binance | ~0 / 31 ms | ~0 / 31 ms |
 
 And live, from the same laptop (5 minutes, quoting 10 bps wide):
 
 | Hop | p50 | p99 |
 |---|---|---|
-| bullet: place sent → accepted | 161 ms | 548 ms |
-| bullet: place sent → live on book | 319 ms | 1,972 ms |
-| bot: received → handled | 0.06 ms | **2,802 ms** |
+| Bullet's reply to a place | 161 ms | 548 ms |
+| place sent → Bullet's websocket shows it | 319 ms | 1,972 ms |
+| queue | 0.06 ms | **2,802 ms** |
 
 Four lessons:
 
