@@ -83,18 +83,20 @@ a CPU hog on every core, our noisy neighbour.
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
-on the Tokyo server, against Part 7 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), live on the Tokyo
+server over Bullet's direct endpoint, against Part 7:
 
-| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
-|---|---|---|---|---|
-| Part 7 | 1.8 / 79 | 1.5 | 0.01 / 28 | 19 |
-| **Part 8** | **2.2 / 27** | 1.5 | 0.01 / 3.0 | 15 |
+| | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
+|---|---|---|---|---|---|
+| Part 7 | 6.0 / 162 ms | 1.5 ms | 2 µs | 3.9 / 161 ms | 0.01 / 13 ms |
+| **Part 8** | **5.8 / 63 ms** | 1.5 ms | 1 µs | 3.9 / 59 ms | 0.01 / 19 ms |
 
-The p50 stays at Binance's 1.5 ms, which tuning can't touch. The queue's
-worst case fell from 28 ms to 3 ms, and this was the best p99 of any run. One
-run doesn't prove a p99, though; the noisy-neighbour test above is the real
-evidence.
+The p50 doesn't move: our part of the trip was already microseconds. What
+tuning buys is shown by the noisy-neighbour test above, where the worst case
+under load fell from milliseconds to microseconds.
+
+Both rows are medians of three 5-minute runs taken in rotation, so they
+saw the same conditions at Bullet.
 
 ## What's next
 
