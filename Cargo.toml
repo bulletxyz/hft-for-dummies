@@ -23,3 +23,9 @@ tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 toml = "0.9"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# TODO: remove once bullet-rust-sdk 0.0.46 is on crates.io (bump the version above
+# instead). Until then: 0.0.45 plus top-level re-exports of OrderIdKind and
+# UnixTimestampMicros (zetamarkets/monorepo#1212).
+[patch.crates-io]
+bullet-rust-sdk = { git = "https://github.com/bulletxyz/bullet-rust-sdk", rev = "dfd58ebd87fec7e67068180025c23a198ee4a387" }
