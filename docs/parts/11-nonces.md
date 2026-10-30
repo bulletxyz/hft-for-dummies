@@ -11,7 +11,7 @@ whether you can have more than one request in flight. Code:
 
 | Scheme | Rule | In flight at once |
 |---|---|---|
-| Sequential (Ethereum, Bullet's `Nonce` mode) | must be exactly last + 1 | one: the next can't be signed validly until you know the last landed |
+| Sequential (Ethereum, Bullet's `Nonce` mode) | must be exactly last + 1 | one: the next is rejected if it arrives before the last |
 | Highest-N set ([Hyperliquid](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/nonces-and-api-wallets)) | any unused value above the smallest of your 100 highest, within a time window | many |
 | Window (Bullet's [`Window` mode](https://tradingapi.bullet.xyz/docs/tx-fields.md)) | unique per key within a moving window | many |
 
@@ -43,8 +43,8 @@ buys you.
 
 Since Part 6 the executor sends one batch at a time. That keeps each quote's
 requests in order (an amend of an order must arrive after the order), but it
-means "cancel everything" can sit behind an amend that's in flight for 100+
-ms, at exactly the moment you want out of the market.
+means "cancel everything" can sit behind an amend that's in flight for tens of
+milliseconds (far longer in the tail), at exactly the moment you want out of the market.
 
 The executor now has two lanes (`src/executor.rs`):
 
@@ -60,13 +60,14 @@ orders it just placed (`undo_if_pulled`).
 
 ## What we measured
 
-Live, 4 minutes quoting 2 bps wide: 44 fills, every pull (`pull: decided → all
+Live from a laptop, 4 minutes quoting 2 bps wide: 44 fills, every pull (`pull: decided → all
 cancelled`) completed in one round trip (~115 ms) instead of waiting for
 in-flight amends, and the bot's final position matched the exchange's.
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 10 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
+on the Tokyo server, against Part 10 (milliseconds):
 
 | | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
 |---|---|---|---|---|
