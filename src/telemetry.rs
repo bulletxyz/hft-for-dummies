@@ -399,7 +399,8 @@ mod tests {
         sent(&mut t, 7, started);
         opened(&mut t, 7, unix_us() + 8_000);
         let p50 = p50_us(&t, ORDER_TO_LIVE);
-        assert!((8_000..9_000).contains(&p50), "{p50}");
+        // Rebuilding a wall-clock time from an `Instant` can be a microsecond off.
+        assert!((7_990..9_000).contains(&p50), "{p50}");
     }
 
     #[test]
@@ -409,6 +410,7 @@ mod tests {
         opened(&mut t, 9, unix_us() + 8_000);
         sent(&mut t, 9, started);
         let p50 = p50_us(&t, ORDER_TO_LIVE);
-        assert!((8_000..9_000).contains(&p50), "{p50}");
+        // Rebuilding a wall-clock time from an `Instant` can be a microsecond off.
+        assert!((7_990..9_000).contains(&p50), "{p50}");
     }
 }
