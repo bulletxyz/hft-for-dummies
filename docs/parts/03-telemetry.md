@@ -34,19 +34,23 @@ Every part from here on ends with the same benchmark, so you can see what each
 change bought. At exit the bot prints one line:
 
 ```text
-SCOREBOARD tick-to-trade p50 … ms p99 … ms | binance→us p50 … ms | queue p99 … ms max … ms | decide p99 … ms | bullet place→accepted p50 … ms | orders …
+SCOREBOARD tick-to-live p50 … ms p95 … ms | tick-to-trade p50 … ms p95 … ms | binance→us p50 … ms | queue p99 … ms max … ms | decide p99 … ms | orders …
 ```
 
-- **Tick-to-trade** is the headline: from the moment of the Binance trade or
-  book change that moved our price (Binance's own timestamp) to the moment our
-  order request leaves for Bullet. It's everything up to the exchange's door:
-  Binance's own delay, the network, our queue, our decision. All of it is
-  either Binance's or ours to improve.
+- **Tick-to-live** is the headline: from the Binance trade or book change
+  that moved our price (Binance's own timestamp) until Bullet accepts our new
+  order, so it rests on the book. That's how long our quote lags the market,
+  which is what decides whether we get picked off.
+- **Tick-to-trade** stops when our order request leaves for Bullet: Binance's
+  delay, the network, our queue and our decision. The gap between the two is
+  the trip to Bullet and its processing, which depends on the venue and the
+  route to it (Part 10).
 - **Queue p99 and max** show jitter: how long events sometimes wait before we
   even look at them.
-- **Bullet place → accepted** is shown for context but isn't part of the
-  score: once the order has left, the time is the venue's (Part 10 shows how
-  much it can vary).
+
+The clock starts at the tick that made the bot requote. A requote the bot
+held back on purpose (`min_requote_ms`) isn't counted: that's a strategy
+choice, not a delay.
 
 The benchmark is `bench-live.toml`: the same settings in every part, quoting
 live, requoting often to get plenty of samples. Ten minutes of it:
@@ -58,17 +62,18 @@ cargo run --release -- run bench-live.toml
 This trades real money: it needs the funded, delegated key from
 [Going live](../../README.md#going-live). On dry run, read our numbers instead.
 
-Optimise for p99, but judge a single run by p50. A p99 can move tens of
-milliseconds between two identical runs, mostly with Binance's own tail, so
-one run's p99 can't show a small improvement.
+A run has a few hundred orders, so per-order numbers use p95: a p99 would be
+just the one or two slowest, and moves tens of milliseconds between two
+identical runs. p99 is still what costs you money; it needs more samples than
+one run gives to read.
 
-The goal for the series: tick-to-trade under 20 ms p50.
+The goal for the series: tick-to-live under 20 ms p50.
 
 ## Clocks
 
-Tick-to-trade compares Binance's clock with ours, so ours must be right. Your
-computer keeps time with a quartz crystal, which ticks at a slightly wrong rate
-that changes with temperature: typically tens of parts per million, a few
+Tick-to-live and tick-to-trade compare Binance's clock with ours, so ours
+must be right. Your computer keeps time with a quartz crystal, which ticks at
+a slightly wrong rate that changes with temperature: typically tens of parts per million, a few
 seconds a day. Operating systems correct it by asking time servers
 ([NTP](https://en.wikipedia.org/wiki/Network_Time_Protocol)) every so often,
 and in between the clock wanders. Laptops are worst: they sleep, change
