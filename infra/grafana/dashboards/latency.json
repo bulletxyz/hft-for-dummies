@@ -267,8 +267,8 @@
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Tick-to-trade: our code",
-      "description": "Our reaction to a Binance update, in microseconds. Next to the milliseconds above, it's almost nothing. Percentiles are over the last 5 minutes.",
+      "title": "Network: binance→us and order-to-live",
+      "description": "The two big steps of the trip: Binance's prices reaching us, and our order reaching Bullet and opening. Part 4 shortens both; Part 10 looks at the route to Bullet. Percentiles are over the last 5 minutes.",
       "gridPos": {
         "x": 0,
         "y": 28,
@@ -285,18 +285,36 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.5\"} > 0",
-          "legendFormat": "p50",
-          "refId": "p50"
+          "expr": "hft_hop_seconds{hop=\"binance→us (network)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "binance→us p50",
+          "refId": "binance→us_p50"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.99\"} > 0",
-          "legendFormat": "p99",
-          "refId": "p99"
+          "expr": "hft_hop_seconds{hop=\"binance→us (network)\",quantile=\"0.99\"} > 0",
+          "legendFormat": "binance→us p99",
+          "refId": "binance→us_p99"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"order-to-live (send + route + Bullet)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "order-to-live p50",
+          "refId": "order-to-live_p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"order-to-live (send + route + Bullet)\",quantile=\"0.99\"} > 0",
+          "legendFormat": "order-to-live p99",
+          "refId": "order-to-live_p99"
         }
       ],
       "fieldConfig": {
@@ -305,7 +323,11 @@
           "custom": {
             "lineWidth": 2,
             "fillOpacity": 0,
-            "showPoints": "never"
+            "showPoints": "never",
+            "scaleDistribution": {
+              "type": "log",
+              "log": 10
+            }
           }
         },
         "overrides": []

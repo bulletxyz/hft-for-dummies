@@ -68,10 +68,17 @@ cd infra/grafana && docker compose up
 ```
 
 and open <http://localhost:3000>. The dashboard
-(`infra/grafana/dashboards/latency.json`) shows the average trip over the last
-minute, where the steps add up to end-to-end (averages add up; percentiles
-don't), then end-to-end's p50 and p99 over time, and each step on a log scale
-so microseconds and milliseconds fit on one chart. It fills in within a minute.
+(`infra/grafana/dashboards/latency.json`) shows:
+
+- **the average trip over the last minute**, with a "sum of steps" bar that
+  matches end-to-end (averages add up; percentiles don't);
+- **end-to-end over time**, p50 and p99;
+- **every step on a log scale**, so our code's microseconds and the
+  network's milliseconds fit on one chart;
+- **the network steps**, binance→us and order-to-live, p50 and p99;
+- **the queue**, whose p99 shows events waiting behind a slow request.
+
+It fills in within a minute.
 (Tested with Docker on a Mac. On Linux, `host.docker.internal` can't reach a
 port bound to `127.0.0.1`: run Prometheus with `network_mode: host` and scrape
 `localhost:9000` instead.)
