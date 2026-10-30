@@ -12,7 +12,7 @@
 //! withdraw. If it ever leaks, your funds stay put.
 
 use std::str::FromStr;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
 use bullet_rust_sdk::codegen::types::Filter;
@@ -20,7 +20,7 @@ use bullet_rust_sdk::types::{OrderUpdateData, OrderUpdateMessage};
 use bullet_rust_sdk::{
     CancelOrderArgs, Client, ClientOrderId, Keypair, ManagedWsConfig, MarketId, Network,
     NewOrderArgs, OrderType, OrderbookDepth, PositiveDecimal, ServerMessage, Side as BulletSide,
-    Topic, UserActionDiscriminants, WsEvent,
+    Topic, UnixTimestampMicros, UserActionDiscriminants, WsEvent,
 };
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -37,6 +37,8 @@ pub struct Bullet {
     account: Option<String>,
     /// Prices must be a multiple of this.
     pub tick: Decimal,
+    /// How long each order we place lives.
+    quote_ttl: Duration,
 }
 
 /// Connect, and start sending the book (and, live, our order updates) to `bus`.
@@ -56,7 +58,7 @@ pub async fn connect(config: &Config, bus: Bus) -> Result<Bullet> {
         })
         .maybe_keypair(keypair)
         .user_actions(vec![
-            UserActionDiscriminants::PlaceOrders,
+            UserActionDiscriminants::CancelAndPlaceOrders,
             UserActionDiscriminants::CancelOrders,
             UserActionDiscriminants::CancelMarketOrders,
         ])
@@ -143,12 +145,15 @@ pub async fn connect(config: &Config, bus: Bus) -> Result<Bullet> {
         symbol: config.symbol.clone(),
         account,
         tick,
+        quote_ttl: Duration::from_secs(config.quote_ttl_secs),
     })
 }
 
 impl Bullet {
     /// Place post-only orders. Post-only means "rest on the book or be
     /// rejected", so we only ever earn the spread, never pay to cross it.
+    /// Each expires after `quote_ttl_secs`: if the bot dies, its quotes stop
+    /// being fillable on their own.
     pub async fn place(&self, orders: &[Order]) -> Result<()> {
         let orders = orders
             .iter()
@@ -169,8 +174,10 @@ impl Bullet {
                 })
             })
             .collect::<Result<Vec<_>>>()?;
+        let expiry = SystemTime::now().duration_since(UNIX_EPOCH)? + self.quote_ttl;
+        let expiry = UnixTimestampMicros::from_micros(i64::try_from(expiry.as_micros())?);
         self.client
-            .place_orders(self.market_id, orders, false, None)
+            .cancel_and_place_orders(self.market_id, vec![], orders, Some(expiry), None)
             .await?;
         Ok(())
     }

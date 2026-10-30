@@ -59,6 +59,20 @@ today, because `tokio` already spreads tasks over several threads. It
 separates the hot input from everything else, which starts to matter as the
 main loop gets busier in Part 6.
 
+## If the bot dies, its quotes die too
+
+Heartbeats cover a feed dying. If the *bot* dies (a crash, a power cut, a
+lost connection), its last quotes stay on the book with nobody watching them.
+So every order now carries an **expiry**: Bullet's `CancelAndPlaceOrders`
+takes an `expiry_timestamp`, and `bullet.rs` sets it `quote_ttl_secs` (30 s)
+ahead. The market maker replaces each quote at half that age, so a running
+bot never lets one lapse. This is a *dead man's switch*: it acts when
+nobody's there to act.
+
+Bullet enforces expiry when matching: an expired order can no longer fill,
+and it's removed when an incoming order reaches it. Until then it still
+shows in the book and in `openOrders`, so don't be surprised to see one there.
+
 ## Test it yourself
 
 Pull the plug on purpose. On the Tokyo server, `chaos.sh` adds a

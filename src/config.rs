@@ -38,6 +38,9 @@ pub struct Config {
     pub requote_threshold_bps: Decimal,
     /// And never more often than this.
     pub min_requote_ms: u64,
+    /// Every order we place expires after this long, so if the bot dies its
+    /// quotes stop being fillable. The bot refreshes them at half this age.
+    pub quote_ttl_secs: u64,
 
     /// Stop quoting for the rest of the run once we are down this much (USD, fees included).
     pub max_loss_usd: Decimal,

@@ -19,6 +19,7 @@ max_position = "0.1"          # never hold more than 0.1 SOL (~$10) long or shor
 skew_bps = "5"                # at max position, lean both quotes 0.05% to unwind
 requote_threshold_bps = "1"   # requote often: more samples
 min_requote_ms = 200
+quote_ttl_secs = 30
 
 # --- Safety ---
 max_loss_usd = "2"            # stop quoting for this run after losing $2 (fees included)
