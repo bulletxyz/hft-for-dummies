@@ -78,7 +78,7 @@ normal requote path.
 
 ## Where we ended up
 
-From Part 2 to here, our own reaction (tick in, orders out) went to about 10
-µs, Binance's prices reach us in 1.5 ms, and nothing we do blocks on the
-exchange. What's left is the trip to Bullet's matching engine; Part 10 shows
-where that goes.
+Tick-to-trade went from 180 ms p50 on a laptop (Part 3) to 1.9 ms. Our own
+reaction (tick in, orders out) is about 10 µs, nothing we do blocks on the
+exchange, and most of what's left is Binance's 1.5 ms to reach us. Beyond our
+door is the trip to Bullet's matching engine; Part 10 shows where that goes.
