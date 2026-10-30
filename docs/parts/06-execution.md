@@ -79,17 +79,20 @@ Live from a laptop, 5 minutes each, quoting 10 bps wide:
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
-on the Tokyo server, against Part 5 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), live on the Tokyo
+server over Bullet's direct endpoint, against Part 5:
 
-| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
-|---|---|---|---|---|
-| Part 5 | 37.2 / 204 | 1.5 | 199 / 449 | 27 |
-| **Part 6** | **1.7 / 51** | 1.5 | 0.01 / 0.03 | 17 |
+| | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
+|---|---|---|---|---|---|
+| Part 5 | 25.5 / 121 ms | 1.6 ms | 1 µs | 23.2 / 119 ms | 100 / 540 ms |
+| **Part 6** | **5.6 / 71 ms** | 1.5 ms | 2 µs | 3.9 / 70 ms | 0.01 / 20 ms |
 
-The big one: 37 ms to 1.7 ms. With nothing waiting, the queue is empty and
-tick-to-trade is almost all Binance's own 1.5 ms. That beats the series goal
-of 20 ms, and later parts improve what's left: the tail.
+The big one: 25 ms to under 6. One request per quote move and no waiting:
+order-to-live drops from 23 ms to about 4, and the queue empties. That beats
+the series goal of 20 ms, and what's left is mostly Bullet opening our order.
+
+Part 6 is the median of three 5-minute runs (see the README's scoreboard);
+Part 5 is a single 10-minute run.
 
 ## What's next
 
