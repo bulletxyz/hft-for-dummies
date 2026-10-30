@@ -73,6 +73,19 @@ Live from a laptop, 5 minutes each, quoting 10 bps wide:
 | bot: received → handled, max | 5,014 ms | 271 ms |
 | requests per quote move | 2 | 1 |
 
+## Scoreboard
+
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 5 (milliseconds):
+
+| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
+|---|---|---|---|---|
+| Part 5 | 37.2 / 204 | 1.5 | 199 / 449 | 27 |
+| **Part 6** | **1.7 / 51** | 1.5 | 0.01 / 0.03 | 17 |
+
+The big one: 37 ms to 1.7 ms. With nothing waiting, the queue is empty and
+tick-to-trade is almost all Binance's own 1.5 ms. That beats the series goal
+of 20 ms, and later parts improve what's left: the tail.
+
 ## What's next
 
 Without waiting, nothing stops the bot from sending requests as fast as the
