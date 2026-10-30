@@ -64,6 +64,18 @@ Live, 4 minutes quoting 2 bps wide: 44 fills, every pull (`pull: decided → all
 cancelled`) completed in one round trip (~115 ms) instead of waiting for
 in-flight amends, and the bot's final position matched the exchange's.
 
+## Scoreboard
+
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 10 (milliseconds):
+
+| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
+|---|---|---|---|---|
+| Part 10 | 1.9 / 58 | 1.5 | 0.01 / 2.9 | 21 |
+| **Part 11** | **1.9 / 61** | 1.6 | 0.01 / 3.0 | 21 |
+
+Unchanged: the pull lane matters when cancelling under pressure, not on the
+normal requote path.
+
 ## Where we ended up
 
 From Part 2 to here, our own reaction (tick in, orders out) went to about 10
