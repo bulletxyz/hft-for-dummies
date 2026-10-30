@@ -144,15 +144,19 @@ impl Telemetry {
         &mut self,
         intents: &[crate::events::Intent],
         tick: Option<&Stamp>,
+        picked_up: Instant,
         decided: Instant,
     ) {
-        let Some(matched_us) = tick.and_then(|t| t.exchange_match_unix_us.or(t.exchange_unix_us))
-        else {
+        let Some(tick) = tick else { return };
+        let Some(matched_us) = tick.exchange_match_unix_us.or(tick.exchange_unix_us) else {
             return;
         };
         let decision = Decision {
-            decided_us: wall_clock(decided),
             matched_us,
+            sent_us: tick.exchange_unix_us.unwrap_or(matched_us),
+            received_us: tick.received_unix_us,
+            handled_us: wall_clock(picked_up),
+            decided_us: wall_clock(decided),
         };
         for intent in intents {
             if let crate::events::Intent::Place(order) = intent {
@@ -178,6 +182,13 @@ impl Telemetry {
             self.our_clock_ahead.saw(decision.decided_us - opened);
         } else {
             self.record_us(ORDER_TO_LIVE, opened - decision.decided_us);
+            // This order's own trip, for Grafana: its steps add up to its
+            // end-to-end exactly, where averages over all messages don't.
+            for (step, us) in TRIP.iter().zip(decision.steps(opened)) {
+                metrics::histogram!("hft_trip_seconds", "step" => *step).record(us as f64 / 1e6);
+            }
+            metrics::histogram!("hft_trip_seconds", "step" => END_TO_END)
+                .record(opened.saturating_sub(decision.matched_us) as f64 / 1e6);
         }
     }
 
@@ -315,10 +326,31 @@ impl Telemetry {
     }
 }
 
+/// One order's trip, each moment in µs since 1970: Binance's match and send
+/// (its clock), our receiving, handling and deciding (ours).
 #[derive(Clone, Copy)]
 struct Decision {
-    decided_us: u64,
     matched_us: u64,
+    sent_us: u64,
+    received_us: u64,
+    handled_us: u64,
+    decided_us: u64,
+}
+
+impl Decision {
+    /// The five steps of this order's trip, ending at `opened` (Bullet's clock).
+    /// Each starts where the last ended, so they sum to `opened - matched_us`.
+    fn steps(&self, opened: u64) -> [u64; 5] {
+        let moments = [
+            self.matched_us,
+            self.sent_us,
+            self.received_us,
+            self.handled_us,
+            self.decided_us,
+            opened,
+        ];
+        std::array::from_fn(|i| moments[i + 1].saturating_sub(moments[i]))
+    }
 }
 
 /// How often two clocks disagreed, and by how much at worst.
@@ -442,7 +474,7 @@ mod tests {
             exchange_match_unix_us: Some(matched),
             ..Stamp::at(decided)
         };
-        t.on_decision(&[order(client_id)], Some(&tick), decided);
+        t.on_decision(&[order(client_id)], Some(&tick), decided, decided);
     }
 
     /// Bullet opened the order at `opened` (its clock); its confirmation
@@ -490,10 +522,24 @@ mod tests {
         // two always describe the same orders.
         let mut t = Telemetry::new();
         let now = unix_us();
-        t.on_decision(&[order(11)], None, Instant::now());
+        t.on_decision(&[order(11)], None, Instant::now(), Instant::now());
         opened(&mut t, 11, now + 8_000, now + 10_000);
         assert!(!t.hops.contains_key(ORDER_TO_LIVE));
         assert!(!t.hops.contains_key(END_TO_END));
+    }
+
+    #[test]
+    fn one_orders_steps_add_up_to_its_end_to_end_exactly() {
+        let d = Decision {
+            matched_us: 1_000_000,
+            sent_us: 1_000_400,
+            received_us: 1_039_000,
+            handled_us: 1_039_600,
+            decided_us: 1_039_608,
+        };
+        let steps = d.steps(1_250_000);
+        assert_eq!(steps, [400, 38_600, 600, 8, 210_392]);
+        assert_eq!(steps.iter().sum::<u64>(), 1_250_000 - 1_000_000);
     }
 
     #[test]

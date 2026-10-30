@@ -105,7 +105,7 @@ async fn event_loop(
                 // (step 3) isn't counted twice.
                 telemetry.record(telemetry::TICK_TO_TRADE, decided - now);
             }
-            telemetry.on_decision(&intents, tick.as_ref(), decided);
+            telemetry.on_decision(&intents, tick.as_ref(), now, decided);
             executor.execute(intents).await;
         }
     };

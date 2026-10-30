@@ -45,7 +45,7 @@ pub struct Config {
     pub basis_halflife_secs: u64,
 
     /// Serve latency metrics to Prometheus on this local port, for Grafana
-    /// (`infra/grafana`). Off when unset (as in the benchmark config).
+    /// (`infra/grafana`). Off when unset.
     #[serde(default)]
     pub metrics_port: Option<u16>,
 }
@@ -125,12 +125,11 @@ mod tests {
     }
 
     #[test]
-    fn metrics_are_on_by_default_and_off_for_the_benchmark() {
-        let bot = Config::load(Path::new("bot.toml")).unwrap();
-        assert_eq!(bot.metrics_port, Some(9000));
-        // Not set: off, so benchmark numbers stay comparable across parts.
-        let bench = Config::load(Path::new("bench-live.toml")).unwrap();
-        assert_eq!(bench.metrics_port, None);
+    fn metrics_are_on_in_the_shipped_configs() {
+        for path in ["bot.toml", "bench-live.toml"] {
+            let config = Config::load(Path::new(path)).unwrap();
+            assert_eq!(config.metrics_port, Some(9000), "{path}");
+        }
     }
 
     #[test]
