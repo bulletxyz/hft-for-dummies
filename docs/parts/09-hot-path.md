@@ -87,18 +87,21 @@ draws it as a flame graph.) What we saw:
 | our bot | 8% |
 | libc | 4% |
 
-The kernel's share is the `tuned` profile from Part 8 *busy-polling*:
+Most of the kernel's share is most likely the `tuned` profile from Part 8
+*busy-polling*:
 instead of sleeping until a packet arrives, the CPU spins checking the
 network card, to pick packets up microseconds sooner. That's a deliberate
 trade (a core spent for latency), which is why the bot needs cores of its own.
 
 Within our 8%, nothing stands out: atomic reference counts, reading the
 websocket, JSON parsing, the scheduler, each under 1%. A flat profile like
-this means the code-side work is done; the remaining wins are elsewhere.
+this means there's no single hotspot left worth chasing; the remaining wins
+are elsewhere.
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 8 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
+on the Tokyo server, against Part 8 (milliseconds):
 
 | | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
 |---|---|---|---|---|
