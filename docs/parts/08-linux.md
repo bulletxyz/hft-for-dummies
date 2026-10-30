@@ -81,6 +81,20 @@ a CPU hog on every core, our noisy neighbour.
   to Binance unchanged with them on or off. They matter once everything else
   is in order; don't expect them to rescue a slow design.
 
+## Scoreboard
+
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 7 (milliseconds):
+
+| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
+|---|---|---|---|---|
+| Part 7 | 1.8 / 79 | 1.5 | 0.01 / 28 | 19 |
+| **Part 8** | **2.2 / 27** | 1.5 | 0.01 / 3.0 | 15 |
+
+The p50 stays at Binance's 1.5 ms, which tuning can't touch. The queue's
+worst case fell from 28 ms to 3 ms, and this was the best p99 of any run. One
+run doesn't prove a p99, though; the noisy-neighbour test above is the real
+evidence.
+
 ## What's next
 
 With the machine quiet, the remaining code-side time is ours. Part 9 profiles
