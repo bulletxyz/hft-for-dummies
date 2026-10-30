@@ -55,6 +55,10 @@ live, requoting often to get plenty of samples. Ten minutes of it:
 cargo run --release -- run bench-live.toml
 ```
 
+Read p50 as the trend. A p99 can move tens of milliseconds between two
+identical runs, mostly with Binance's own tail, so don't trust one run's
+p99 to show a small improvement.
+
 ## Clocks
 
 Tick-to-trade compares Binance's clock with ours, so ours must be right. Your
@@ -128,6 +132,19 @@ Four lessons:
 4. **You can't measure one-way network latency with an unsynced clock.** The
    first run was on a laptop 288 ms behind real time, so every message
    "arrived before it was sent" (see Clocks above).
+
+## Scoreboard
+
+This part's benchmark, 10 minutes live from a laptop (milliseconds):
+
+| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
+|---|---|---|---|---|
+| Part 3 (laptop) | 180 / 586 | 55 | 829 / 2,167 | 119 |
+
+The baseline, from a laptop: 180 ms from Binance's trade to our order
+leaving. Binance's prices take 55 ms to reach us; most of the rest is ticks
+waiting in the queue while the bot waits ~120 ms for Bullet to accept its
+last order. Part 4 attacks the distance, Part 6 the waiting.
 
 ## What's next
 

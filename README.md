@@ -115,6 +115,17 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 | 10 | Network optimisation on AWS | coming |
 | 11 | Nonce management | coming |
 
+## Scoreboard
+
+The [standard benchmark](docs/parts/03-telemetry.md#the-scoreboard) at the end
+of each part: 10 minutes quoting live with `bench-live.toml`. Part 3 ran on a
+laptop, the rest on the Tokyo server. Milliseconds; p50 is the trend, p99
+is noisy from run to run.
+
+| Part | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
+|---|---|---|---|---|
+| 3 | 180 / 586 | 55 | 829 / 2,167 | 119 |
+
 ## Incidents
 
 Things that went wrong while building this live, and what each taught us.
