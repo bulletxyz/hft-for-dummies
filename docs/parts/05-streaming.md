@@ -73,6 +73,19 @@ link behaves) and times how long the bot takes to notice:
 | Binance | 10.1 s (silence timeout) | 3.1 s |
 | Bullet | 30.7 s (SDK default) | 2.9 s |
 
+## Scoreboard
+
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 4 (milliseconds):
+
+| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
+|---|---|---|---|---|
+| Part 4 | 35.7 / 306 | 1.6 | 340 / 565 | 27 |
+| **Part 5** | **37.2 / 204** | 1.5 | 199 / 449 | 27 |
+
+No change, as expected. This part is about noticing a dead connection in
+3 seconds instead of 30, and a healthy run never exercises that. (The p99s
+differ, but p99 moves this much between identical runs.)
+
 ## What's next
 
 The bot still waits for every order request to finish before reading the
