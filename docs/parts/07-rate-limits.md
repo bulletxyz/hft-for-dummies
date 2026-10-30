@@ -90,16 +90,20 @@ Two lessons:
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
-on the Tokyo server, against Part 6 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), live on the Tokyo
+server over Bullet's direct endpoint, against Part 6:
 
-| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
-|---|---|---|---|---|
-| Part 6 | 1.7 / 51 | 1.5 | 0.01 / 0.03 | 17 |
-| **Part 7** | **1.8 / 79** | 1.5 | 0.01 / 28 | 19 |
+| | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
+|---|---|---|---|---|---|
+| Part 6 | 5.6 / 71 ms | 1.5 ms | 2 µs | 3.9 / 70 ms | 0.01 / 20 ms |
+| **Part 7** | **6.0 / 162 ms** | 1.5 ms | 2 µs | 3.9 / 161 ms | 0.01 / 13 ms |
 
-Same as Part 6, within noise. The budget only bites in bursts, and this run
-had none.
+Same as Part 6, within noise: the budget only bites in bursts. The p99
+swings a lot between runs (that's Bullet's tail), so don't read the change
+there as this part's doing.
+
+Both rows are medians of three 5-minute runs taken in rotation, so they
+saw the same conditions at Bullet.
 
 ## What's next
 
