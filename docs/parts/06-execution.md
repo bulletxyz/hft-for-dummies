@@ -1,6 +1,7 @@
 # Part 6: Don't wait for the exchange
 
-An order request to Bullet takes ~100-500 ms to come back. Until now the bot
+An order request to Bullet takes tens of milliseconds to come back from
+Tokyo, over 100 from a laptop, and far longer in the tail. Until now the bot
 sat and waited for each one, deaf to Binance the whole time. This part stops
 the waiting, halves the number of requests, and handles the race every market
 maker hits sooner or later. Code:
@@ -30,7 +31,7 @@ Two details:
 
 - **Order is kept.** The worker runs one batch at a time, so a cancel always
   lands before the order that replaces it. Sending several requests at once is
-  possible, but needs care with transaction nonces: that's Part 11.
+  possible (Part 11), but then they can land out of order.
 - **Shutdown waits.** On Ctrl-C the bot queues "cancel everything" and then
   waits for the worker to finish (`finish()`), or it could exit with orders
   still resting.
@@ -40,19 +41,19 @@ Two details:
 Moving a quote used to be two requests: cancel the old order, place a new
 one. Between the two, we had no quote on the book at all. Bullet supports
 **amending** (`AmendOrders`): cancel-and-replace in one transaction. One
-request instead of two (every Bullet transaction also costs a little gas),
+request instead of two (every Bullet transaction also costs a small fee),
 and the book never sees us disappear.
 
 ## The race: an order fills while you cancel it
 
-You decide to move your bid. In the ~100 ms your amend takes to arrive,
+You decide to move your bid. In the milliseconds your amend takes to arrive,
 someone sells into the old bid. When the amend lands, the old order no
 longer exists, and Bullet rejects the request with
 `client_order_id_not_found`. Because a transaction is all or nothing, the
 *other* orders in it weren't touched either.
 
 The old response was blunt: cancel everything, start again. Now the worker
-reads the error (`bullet::order_not_found`), removes the order that's gone
+reads the error (`bullet::order_not_found`; Part 7 generalises it), removes the order that's gone
 from the request, sends the rest again, and places the replacement as a fresh
 order. The fill itself arrives as an event like any other fill.
 
@@ -67,7 +68,7 @@ order. The fill itself arrives as an event like any other fill.
 
 Live from a laptop, 5 minutes each, quoting 10 bps wide:
 
-| | Part 5 | Part 6 |
+| | waiting (Parts 3-5) | Part 6 |
 |---|---|---|
 | bot: received → handled, p99 | 2,802 ms | 14 ms |
 | bot: received → handled, max | 5,014 ms | 271 ms |
@@ -75,7 +76,8 @@ Live from a laptop, 5 minutes each, quoting 10 bps wide:
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 5 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
+on the Tokyo server, against Part 5 (milliseconds):
 
 | | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
 |---|---|---|---|---|
