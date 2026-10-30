@@ -14,12 +14,12 @@
       "id": 1,
       "type": "bargauge",
       "title": "One trip, now (p50 over the last minute)",
-      "description": "End-to-end, then the steps that roughly add up to it, in loop order.",
+      "description": "End-to-end, then the steps that roughly add up to it, in loop order. Each is the p50 over the last minute; a step with no samples that minute keeps its last value.",
       "gridPos": {
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 8
+        "h": 12
       },
       "datasource": {
         "type": "prometheus",
@@ -31,7 +31,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.5\"}",
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.5\"} > 0",
           "legendFormat": "end-to-end",
           "refId": "end-to-end"
         },
@@ -40,8 +40,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"inside Binance (match → sent)\",quantile=\"0.5\"}",
-          "legendFormat": "1 inside Binance (match → sent)",
+          "expr": "hft_hop_seconds{hop=\"inside Binance (match → sent)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "1 Binance",
           "refId": "1 inside Binance (ma"
         },
         {
@@ -49,8 +49,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"binance→us (network)\",quantile=\"0.5\"}",
-          "legendFormat": "2 binance→us (network)",
+          "expr": "hft_hop_seconds{hop=\"binance→us (network)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "2 binance→us",
           "refId": "2 binance→us (networ"
         },
         {
@@ -58,8 +58,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.5\"}",
-          "legendFormat": "3 queue (received → handled)",
+          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "3 queue",
           "refId": "3 queue (received → "
         },
         {
@@ -67,8 +67,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.5\"}",
-          "legendFormat": "4 tick-to-trade (our code)",
+          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "4 tick-to-trade",
           "refId": "4 tick-to-trade (our"
         },
         {
@@ -76,8 +76,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"order-to-live (send + route + Bullet)\",quantile=\"0.5\"}",
-          "legendFormat": "5 order-to-live (send + route + Bullet)",
+          "expr": "hft_hop_seconds{hop=\"order-to-live (send + route + Bullet)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "5 order-to-live",
           "refId": "5 order-to-live (rou"
         }
       ],
@@ -102,7 +102,8 @@
           "values": false
         },
         "showUnfilled": true,
-        "valueMode": "color"
+        "valueMode": "color",
+        "namePlacement": "top"
       }
     },
     {
@@ -112,7 +113,7 @@
       "description": "The headline. p50 is typical, p99 is the slow 1% that gets you picked off.",
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 12,
         "w": 12,
         "h": 9
       },
@@ -126,7 +127,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.5\"}",
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.5\"} > 0",
           "legendFormat": "p50",
           "refId": "p50"
         },
@@ -135,7 +136,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.95\"}",
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.95\"} > 0",
           "legendFormat": "p95",
           "refId": "p95"
         },
@@ -144,7 +145,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.99\"}",
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.99\"} > 0",
           "legendFormat": "p99",
           "refId": "p99"
         }
@@ -177,7 +178,7 @@
       "description": "From microseconds (our code) to milliseconds (the network): log scale so all fit.",
       "gridPos": {
         "x": 12,
-        "y": 8,
+        "y": 12,
         "w": 12,
         "h": 9
       },
@@ -191,7 +192,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"inside Binance (match → sent)\",quantile=\"0.5\"}",
+          "expr": "hft_hop_seconds{hop=\"inside Binance (match → sent)\",quantile=\"0.5\"} > 0",
           "legendFormat": "1 inside Binance (match → sent)",
           "refId": "1 inside Binance (ma"
         },
@@ -200,7 +201,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"binance→us (network)\",quantile=\"0.5\"}",
+          "expr": "hft_hop_seconds{hop=\"binance→us (network)\",quantile=\"0.5\"} > 0",
           "legendFormat": "2 binance→us (network)",
           "refId": "2 binance→us (networ"
         },
@@ -209,7 +210,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.5\"}",
+          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.5\"} > 0",
           "legendFormat": "3 queue (received → handled)",
           "refId": "3 queue (received → "
         },
@@ -218,7 +219,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.5\"}",
+          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.5\"} > 0",
           "legendFormat": "4 tick-to-trade (our code)",
           "refId": "4 tick-to-trade (our"
         },
@@ -227,7 +228,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"order-to-live (send + route + Bullet)\",quantile=\"0.5\"}",
+          "expr": "hft_hop_seconds{hop=\"order-to-live (send + route + Bullet)\",quantile=\"0.5\"} > 0",
           "legendFormat": "5 order-to-live (send + route + Bullet)",
           "refId": "5 order-to-live (rou"
         }
@@ -264,7 +265,7 @@
       "description": "Tick received → order out. Microseconds.",
       "gridPos": {
         "x": 0,
-        "y": 17,
+        "y": 21,
         "w": 12,
         "h": 8
       },
@@ -278,7 +279,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.5\"}",
+          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.5\"} > 0",
           "legendFormat": "p50",
           "refId": "p50"
         },
@@ -287,7 +288,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.99\"}",
+          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.99\"} > 0",
           "legendFormat": "p99",
           "refId": "p99"
         }
@@ -320,7 +321,7 @@
       "description": "Jitter shows up here first.",
       "gridPos": {
         "x": 12,
-        "y": 17,
+        "y": 21,
         "w": 12,
         "h": 8
       },
@@ -334,7 +335,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.5\"}",
+          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.5\"} > 0",
           "legendFormat": "p50",
           "refId": "p50"
         },
@@ -343,7 +344,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.99\"}",
+          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.99\"} > 0",
           "legendFormat": "p99",
           "refId": "p99"
         }

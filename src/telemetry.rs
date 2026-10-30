@@ -56,9 +56,9 @@ pub const BULLET_NETWORK: &str = "Bullet book → us (network)";
 pub struct Telemetry {
     /// Microseconds, per hop.
     hops: BTreeMap<&'static str, Histogram<u64>>,
-    /// For each order we decided to place, until Bullet opens it: when we
-    /// decided (µs since 1970, our clock) and, if a Binance update moved our
-    /// price, when that happened (Binance's clock).
+    /// For each order a Binance update made us place, until Bullet opens it:
+    /// when we decided (µs since 1970, our clock) and when that update
+    /// happened (Binance's clock).
     decided: HashMap<u64, Decision>,
     /// Times that can't be true unless a clock is off, and by how much at worst.
     our_clock_behind: Skew,
@@ -137,16 +137,21 @@ impl Telemetry {
     }
 
     /// The bot decided, at `decided`, to send these orders. `tick` is the
-    /// Binance update that moved our price, if one did.
+    /// Binance update that moved our price, if one did. Only those orders are
+    /// timed, so end-to-end and its steps always describe the same orders.
     pub fn on_decision(
         &mut self,
         intents: &[crate::events::Intent],
         tick: Option<&Stamp>,
         decided: Instant,
     ) {
+        let Some(matched_us) = tick.and_then(|t| t.exchange_match_unix_us.or(t.exchange_unix_us))
+        else {
+            return;
+        };
         let decision = Decision {
             decided_us: wall_clock(decided),
-            matched_us: tick.and_then(|t| t.exchange_match_unix_us.or(t.exchange_unix_us)),
+            matched_us,
         };
         for intent in intents {
             if let crate::events::Intent::Place(order) = intent {
@@ -158,13 +163,11 @@ impl Telemetry {
     /// Bullet opened an order at `opened` (its clock), and we heard about it at
     /// `heard` (our clock).
     fn order_opened(&mut self, decision: Decision, opened: u64, heard: u64) {
-        if let Some(matched) = decision.matched_us {
-            // Binance's clock against Bullet's: ours plays no part.
-            if opened < matched {
-                self.exchanges_disagree.saw(matched - opened);
-            } else {
-                self.record_us(END_TO_END, opened - matched);
-            }
+        // Binance's clock against Bullet's: ours plays no part.
+        if opened < decision.matched_us {
+            self.exchanges_disagree.saw(decision.matched_us - opened);
+        } else {
+            self.record_us(END_TO_END, opened - decision.matched_us);
         }
         // Bullet must open the order after we decided and before we hear it did.
         // Outside that window, our clock disagrees with Bullet's.
@@ -316,7 +319,7 @@ impl Telemetry {
 #[derive(Clone, Copy)]
 struct Decision {
     decided_us: u64,
-    matched_us: Option<u64>,
+    matched_us: u64,
 }
 
 /// How often two clocks disagreed, and by how much at worst.
@@ -476,6 +479,19 @@ mod tests {
         let p50 = p50_us(&t, ORDER_TO_LIVE);
         // Rebuilding a wall-clock time from an `Instant` can be a microsecond off.
         assert!((7_990..9_000).contains(&p50), "{p50}");
+    }
+
+    #[test]
+    fn orders_not_caused_by_a_binance_update_are_not_timed() {
+        // A requote after a fill or a Bullet book change: no Binance update to
+        // time from, so neither end-to-end nor order-to-live counts it, and the
+        // two always describe the same orders.
+        let mut t = Telemetry::new();
+        let now = unix_us();
+        t.on_decision(&[order(11)], None, Instant::now());
+        opened(&mut t, 11, now + 8_000, now + 10_000);
+        assert!(!t.hops.contains_key(ORDER_TO_LIVE));
+        assert!(!t.hops.contains_key(END_TO_END));
     }
 
     #[test]
