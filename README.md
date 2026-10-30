@@ -147,7 +147,7 @@ Details in each part's guide.
 | 2 | Binance socket went silent, no error | Silence isn't "nothing happened": time out and reconnect |
 | 2 | Bullet's websocket dropped a fill | Streams notify, records are truth: reconcile fills |
 | 2 | An order filled during shutdown | Check fills once more before reporting |
-| 2 | A cancel raced a fill | "Order not found" is normal; handle it (Part 6) |
+| 2 | A cancel raced a fill | "Order not found" is normal: plan for it (Part 6 avoids it) |
 | 3 | Laptop clock 288 ms behind: messages "from the future" | Sync clocks before measuring across machines |
 | 4 | Our latency probe was timing DNS lookups | Know exactly what your tool measures |
 | 5 | A 3 s heartbeat timeout fired falsely on wifi | Timeouts trade false alarms against reaction time |

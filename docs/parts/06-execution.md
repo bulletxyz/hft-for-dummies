@@ -3,8 +3,8 @@
 An order request to Bullet takes tens of milliseconds to come back from
 Tokyo, over 100 from a laptop, and far longer in the tail. Until now the bot
 sat and waited for each one, deaf to Binance the whole time. This part stops
-the waiting, halves the number of requests, and handles the race every market
-maker hits sooner or later. Code:
+the waiting, halves the number of requests, and sidesteps the race every
+market maker hits sooner or later. Code:
 [`part-6`](https://github.com/bulletxyz/hft-for-dummies/tree/part-6) ·
 [diff](https://github.com/bulletxyz/hft-for-dummies/compare/part-5...part-6).
 
@@ -36,26 +36,29 @@ Two details:
   waits for the worker to finish (`finish()`), or it could exit with orders
   still resting.
 
-## Amend, don't cancel and re-place
+## One request per move
 
 Moving a quote used to be two requests: cancel the old order, place a new
-one. Between the two, we had no quote on the book at all. Bullet supports
-**amending** (`AmendOrders`): cancel-and-replace in one transaction. One
+one. Between the two, we had no quote on the book at all. Now each batch is
+one `CancelAndPlaceOrders` transaction (`bullet::cancel_and_place`), the call
+Part 5 introduced for expiry, with the old order in its cancel list. One
 request instead of two (every Bullet transaction also costs a small fee),
 and the book never sees us disappear.
 
 ## The race: an order fills while you cancel it
 
-You decide to move your bid. In the milliseconds your amend takes to arrive,
-someone sells into the old bid. When the amend lands, the old order no
-longer exists, and Bullet rejects the request with
-`client_order_id_not_found`. Because a transaction is all or nothing, the
-*other* orders in it weren't touched either.
+You decide to move your bid. In the milliseconds your request takes to
+arrive, someone sells into the old bid. When it lands, the old order no
+longer exists. Bullet's other way to move an order, `AmendOrders`, rejects
+the whole request in that case (`client_order_id_not_found`), and the bot has
+to work out which order went and try again. `CancelAndPlaceOrders` skips a
+cancel for an order that's already gone and places the new one anyway, so
+the race needs no special handling. The fill itself arrives as an event like
+any other fill.
 
-The old response was blunt: cancel everything, start again. Now the worker
-reads the error (`bullet::order_not_found`; Part 7 generalises it), removes the order that's gone
-from the request, sends the rest again, and places the replacement as a fresh
-order. The fill itself arrives as an event like any other fill.
+If the request fails for another reason (not enough margin, say), nothing in
+it happened. The worker reports that, and the strategy cancels everything and
+starts its quotes afresh.
 
 > **Incident: the confirmation that beat its request.** After this change,
 > the telemetry's "placed → live on book" row went empty. Bullet's websocket
