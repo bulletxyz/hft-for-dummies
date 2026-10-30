@@ -34,17 +34,27 @@ Every part from here on ends with the same benchmark, so you can see what each
 change bought. At exit the bot prints one line:
 
 ```text
-SCOREBOARD tick-to-live p50 … ms p95 … ms | tick-to-trade p50 … ms p95 … ms | binance→us p50 … ms | queue p99 … ms max … ms | decide p99 … ms | orders …
+SCOREBOARD end-to-end p50 … ms p95 … ms | binance→us p50 … ms | tick-to-trade p50 … µs p99 … µs | order-to-live p50 … ms p95 … ms | queue p99 … ms max … ms | orders …
 ```
 
-- **Tick-to-live** is the headline: from the Binance trade or book change
-  that moved our price (Binance's own timestamp) until Bullet accepts our new
-  order, so it rests on the book. That's how long our quote lags the market,
-  which is what decides whether we get picked off.
-- **Tick-to-trade** stops when our order request leaves for Bullet: Binance's
-  delay, the network, our queue and our decision. The gap between the two is
-  the trip to Bullet and its processing, which depends on the venue and the
-  route to it (Part 10).
+It splits one trip around the loop into the parts that add up to it:
+
+```text
+ Binance trade ──► reaches us ──► waits in our queue ──► we decide ──► request to Bullet ──► our order is open
+ (Binance's clock)  binance→us        queue              tick-to-trade    order-to-live        (Bullet's clock)
+ └─────────────────────────────────────── end-to-end ───────────────────────────────────────┘
+```
+
+- **End-to-end** is the headline: from the Binance trade or book change that
+  moved our price to Bullet's matching engine opening our new order, each
+  stamped by its own exchange. That's how long our quote lags the market,
+  which decides whether we get picked off.
+- **Binance → us** is the network from Binance.
+- **Tick-to-trade** is our reaction, from the tick arriving to the order going
+  out: the usual meaning of the term in HFT, measured in microseconds.
+- **Order-to-live** is the route to Bullet and Bullet's processing, until its
+  engine stamps the order open. It ends there, not when Bullet's reply gets
+  back to us: the order is resting before the reply arrives.
 - **Queue p99 and max** show jitter: how long events sometimes wait before we
   even look at them.
 
@@ -67,14 +77,15 @@ just the one or two slowest, and moves tens of milliseconds between two
 identical runs. p99 is still what costs you money; it needs more samples than
 one run gives to read.
 
-The goal for the series: tick-to-live under 20 ms p50.
+The goal for the series: end-to-end under 20 ms p50.
 
 ## Clocks
 
-Tick-to-live and tick-to-trade compare Binance's clock with ours, so ours
-must be right. Your computer keeps time with a quartz crystal, which ticks at
-a slightly wrong rate that changes with temperature: typically tens of parts per million, a few
-seconds a day. Operating systems correct it by asking time servers
+Binance → us and order-to-live compare an exchange's clock with ours, so ours
+must be right. (End-to-end uses Binance's and Bullet's clocks only, and
+tick-to-trade only ours.) Your computer keeps time with a quartz crystal,
+which ticks at a slightly wrong rate that changes with temperature: typically
+tens of parts per million, a few seconds a day. Operating systems correct it by asking time servers
 ([NTP](https://en.wikipedia.org/wiki/Network_Time_Protocol)) every so often,
 and in between the clock wanders. Laptops are worst: they sleep, change
 networks and correct lazily. Ours was 288 ms behind real time one afternoon
