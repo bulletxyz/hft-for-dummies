@@ -34,9 +34,9 @@ pub const TICK_TO_ORDER: &str = "bot: tick received → orders sent";
 /// From the Binance trade (or book change) that moved our price to our order
 /// request leaving for Bullet. Everything in it is either Binance's or ours.
 pub const TICK_TO_TRADE: &str = "TICK-TO-TRADE: Binance match → order sent";
-/// The headline number: from that Binance trade until Bullet's websocket shows
-/// our new order resting on the book. How long our quote lags the market.
-pub const TICK_TO_LIVE: &str = "TICK-TO-LIVE: Binance match → order on book";
+/// The headline number: from that Binance trade until Bullet accepts our order,
+/// so it rests on the book. How long our quote lags the market.
+pub const TICK_TO_LIVE: &str = "TICK-TO-LIVE: Binance match → order accepted";
 pub const SUBMIT_PLACE: &str = "bullet: place sent → accepted";
 pub const SUBMIT_CANCEL: &str = "bullet: cancel sent → accepted";
 pub const PLACE_TO_LIVE: &str = "bullet: place sent → live on book (ws)";
@@ -47,8 +47,7 @@ pub struct Telemetry {
     /// When each order we placed was sent, until the exchange echoes it.
     placed_at: HashMap<u64, Instant>,
     /// For each order we decided to send: when the Binance event that moved
-    /// our price happened (µs since 1970, Binance's clock). Kept until the
-    /// order shows up on the book.
+    /// our price happened (µs since 1970, Binance's clock).
     triggered_by: HashMap<u64, u64>,
     /// Echoes that arrived before we heard our own request had finished: the
     /// websocket can beat the HTTP response back to us.
@@ -111,7 +110,7 @@ impl Telemetry {
             } => {
                 let hop = match kind {
                     crate::events::SentKind::Place => {
-                        self.tick_to_trade(client_ids, *started);
+                        self.tick_to_trade(client_ids, *started, *finished);
                         for id in client_ids {
                             match self.live_at.remove(id) {
                                 Some(live) => self.record(
@@ -129,18 +128,15 @@ impl Telemetry {
                 };
                 self.record(hop, finished.saturating_duration_since(*started));
             }
-            Event::OrderLive { client_id, stamp } => {
-                self.tick_to_live(*client_id, stamp);
-                match self.placed_at.remove(client_id) {
-                    Some(sent) => self.record(
-                        PLACE_TO_LIVE,
-                        stamp.received_at.saturating_duration_since(sent),
-                    ),
-                    None => {
-                        self.live_at.insert(*client_id, stamp.received_at);
-                    }
+            Event::OrderLive { client_id, stamp } => match self.placed_at.remove(client_id) {
+                Some(sent) => self.record(
+                    PLACE_TO_LIVE,
+                    stamp.received_at.saturating_duration_since(sent),
+                ),
+                None => {
+                    self.live_at.insert(*client_id, stamp.received_at);
                 }
-            }
+            },
             _ => {}
         }
     }
@@ -159,14 +155,17 @@ impl Telemetry {
         }
     }
 
-    /// Tick-to-trade for orders whose request started at `started`.
-    fn tick_to_trade(&mut self, client_ids: &[u64], started: Instant) {
-        // When the request started, on the wall clock (to compare with Binance's).
+    /// Tick-to-trade and tick-to-live for orders whose request started at
+    /// `started` and was accepted at `finished`.
+    fn tick_to_trade(&mut self, client_ids: &[u64], started: Instant, finished: Instant) {
+        // Both moments on the wall clock, to compare with Binance's.
         let now_us = unix_us();
-        let started_us =
-            now_us.saturating_sub(u64::try_from(started.elapsed().as_micros()).unwrap_or(0));
+        let wall = |at: Instant| {
+            now_us.saturating_sub(u64::try_from(at.elapsed().as_micros()).unwrap_or(0))
+        };
+        let (started_us, finished_us) = (wall(started), wall(finished));
         for id in client_ids {
-            let Some(&matched) = self.triggered_by.get(id) else {
+            let Some(matched) = self.triggered_by.remove(id) else {
                 continue;
             };
             if started_us < matched {
@@ -174,22 +173,8 @@ impl Telemetry {
                 self.clock_behind_max_us = self.clock_behind_max_us.max(matched - started_us);
             } else {
                 self.record_us(TICK_TO_TRADE, started_us - matched);
+                self.record_us(TICK_TO_LIVE, finished_us - matched);
             }
-        }
-    }
-
-    /// Tick-to-live for an order Bullet's websocket just showed on the book.
-    fn tick_to_live(&mut self, client_id: u64, live: &Stamp) {
-        let Some(matched) = self.triggered_by.remove(&client_id) else {
-            return;
-        };
-        if live.received_unix_us < matched {
-            self.clock_behind += 1;
-            self.clock_behind_max_us = self
-                .clock_behind_max_us
-                .max(matched - live.received_unix_us);
-        } else {
-            self.record_us(TICK_TO_LIVE, live.received_unix_us - matched);
         }
     }
 
@@ -389,12 +374,14 @@ mod tests {
     }
 
     #[test]
-    fn tick_to_live_runs_from_binance_match_to_our_order_on_the_book() {
+    fn tick_to_live_runs_from_binance_match_to_bullet_accepting_the_order() {
         use rust_decimal::Decimal;
 
         use crate::events::{Intent, Order, Side};
         let mut t = Telemetry::new();
-        let matched = 1_000_000;
+        // A Binance trade 25 ms ago moved our price. Our request left 20 ms ago
+        // and Bullet has just accepted it.
+        let matched = unix_us() - 25_000;
         let tick = Stamp {
             exchange_match_unix_us: Some(matched),
             ..Stamp::at(Instant::now())
@@ -406,22 +393,21 @@ mod tests {
             client_id: 4,
         };
         t.on_decision(&[Intent::Place(order)], Some(&tick));
-        // Bullet's websocket shows the order resting 20 ms after the Binance trade.
-        let live = Stamp {
-            received_unix_us: matched + 20_000,
-            ..Stamp::at(Instant::now())
-        };
+        let finished = Instant::now();
         t.on_event(
-            &Event::OrderLive {
-                client_id: 4,
-                stamp: live,
+            &Event::Sent {
+                kind: SentKind::Place,
+                client_ids: vec![4],
+                started: finished - Duration::from_millis(20),
+                finished,
             },
-            Instant::now(),
+            finished,
         );
-        assert_near(p50_us(&t, TICK_TO_LIVE), 20_000);
+        let p50 = p50_us(&t, TICK_TO_LIVE);
+        assert!((25_000..26_000).contains(&p50), "{p50}");
         assert!(
             t.scoreboard()
-                .starts_with("SCOREBOARD tick-to-live p50 20.0"),
+                .starts_with("SCOREBOARD tick-to-live p50 25."),
             "{}",
             t.scoreboard()
         );
