@@ -70,9 +70,9 @@ cd infra/grafana && docker compose up
 and open <http://localhost:3000>. The dashboard
 (`infra/grafana/dashboards/latency.json`) shows:
 
-- **the average trip of the last minute's orders**: for each order the five
-  steps add up to its end-to-end exactly, so the "sum of steps" bar matches
-  it (averages of the same orders add up; percentiles don't);
+- **the average trip of the last 5 minutes' orders**: for each order the five
+  steps add up to its end-to-end exactly, so the step bars sum to the
+  end-to-end bar (averages of the same orders add up; percentiles don't);
 - **end-to-end over time**, p50 and p99;
 - **every step on a log scale**, so our code's microseconds and the
   network's milliseconds fit on one chart;
