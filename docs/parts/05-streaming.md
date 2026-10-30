@@ -28,7 +28,7 @@ seconds, the connection is dead: drop it and reconnect.
 
 - Binance (`src/binance.rs`): our own ping loop.
 - Bullet (`src/bullet.rs`): the SDK's managed socket reconnects after an
-  `idle_timeout` (default 60 s; we set 3 s) and we ping it every second.
+  `idle_timeout` (we set 3 s) and we ping it every second.
 
 Why 3 seconds? Long enough that one slow pong isn't a false alarm on a
 datacentre network (the Tokyo server had none), short enough that we don't
@@ -39,9 +39,11 @@ quote on a dead feed for long.
 > pulled its quotes, reconnected and carried on, which is the right outcome
 > for a false alarm. The Tokyo server never had one. *Lesson:* every timeout
 > trades false alarms against reaction time; pick it for where the bot
-> actually runs. Remember the
-stale-price guard pulls our quotes even sooner (after `reference_stale_secs`),
-so we're never quoting blind while we wait.
+> actually runs.
+
+The stale-price guards (`reference_stale_secs`, `book_stale_secs`) stay as
+a second safety net: if a feed goes quiet without the connection dying, we
+still stop quoting.
 
 ## One connection per job
 
@@ -71,11 +73,12 @@ link behaves) and times how long the bot takes to notice:
 | Connection cut | Part 4 noticed after | Part 5 |
 |---|---|---|
 | Binance | 10.1 s (silence timeout) | 3.1 s |
-| Bullet | 30.7 s (SDK default) | 2.9 s |
+| Bullet | 30.7 s (SDK defaults) | 2.9 s |
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 4 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
+on the Tokyo server, against Part 4 (milliseconds):
 
 | | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
 |---|---|---|---|---|
@@ -89,5 +92,5 @@ differ, but p99 moves this much between identical runs.)
 ## What's next
 
 The bot still waits for every order request to finish before reading the
-next event. While it waits ~100 ms for Bullet, Binance can move, and we're
-not looking. Part 6 fixes that.
+next event. While it waits for Bullet (27 ms typically, far longer in the
+tail), Binance can move, and we're not looking. Part 6 fixes that.
