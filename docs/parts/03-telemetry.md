@@ -36,6 +36,23 @@ tick-to-trade spent deciding, and how fast Bullet's own book reaches us.
 1%, and that's when you get picked off: the moment the price jumps is exactly
 when everything is busiest. HDR histograms keep both cheaply and accurately.
 
+## Seeing it in Grafana
+
+The table is enough to compare runs, but a picture shows how latency moves
+over time. Production bots export their histograms to
+[Prometheus](https://prometheus.io/), a database for numbers over time, and
+draw them in [Grafana](https://grafana.com/). This bot can too, through the
+[`metrics`](https://docs.rs/metrics) crate: set `metrics_port = 9000` in
+`bot.toml`, run the bot, then (with Docker installed):
+
+```sh
+cd infra/grafana && docker compose up
+```
+
+and open <http://localhost:3000>. The dashboard (`infra/grafana/dashboards/latency.json`)
+shows one trip right now, end-to-end over time, and each step on a log scale,
+so microseconds and milliseconds fit on one chart.
+
 ## The scoreboard
 
 Every part from here on ends with the same benchmark, so you can see what each

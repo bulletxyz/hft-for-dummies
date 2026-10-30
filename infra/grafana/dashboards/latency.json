@@ -1,0 +1,373 @@
+{
+  "uid": "hft-latency",
+  "title": "HFT for dummies: latency",
+  "timezone": "utc",
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "schemaVersion": 41,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "bargauge",
+      "title": "One trip, now (p50 over the last minute)",
+      "description": "End-to-end, then the steps that roughly add up to it, in loop order.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance trade → our order open\",quantile=\"0.5\"}",
+          "legendFormat": "end-to-end",
+          "refId": "end-to-end"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"inside Binance (match → sent)\",quantile=\"0.5\"}",
+          "legendFormat": "1 inside Binance (match → sent)",
+          "refId": "1 inside Binance (ma"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"binance→us (network)\",quantile=\"0.5\"}",
+          "legendFormat": "2 binance→us (network)",
+          "refId": "2 binance→us (networ"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.5\"}",
+          "legendFormat": "3 queue (received → handled)",
+          "refId": "3 queue (received → "
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.5\"}",
+          "legendFormat": "4 tick-to-trade (our code)",
+          "refId": "4 tick-to-trade (our"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"order-to-live (route + Bullet)\",quantile=\"0.5\"}",
+          "legendFormat": "5 order-to-live (route + Bullet)",
+          "refId": "5 order-to-live (rou"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "End-to-end: Binance trade → our order open on Bullet",
+      "description": "The headline. p50 is typical, p99 is the slow 1% that gets you picked off.",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance trade → our order open\",quantile=\"0.5\"}",
+          "legendFormat": "p50",
+          "refId": "p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance trade → our order open\",quantile=\"0.95\"}",
+          "legendFormat": "p95",
+          "refId": "p95"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance trade → our order open\",quantile=\"0.99\"}",
+          "legendFormat": "p99",
+          "refId": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "The steps over time (p50, log scale)",
+      "description": "From microseconds (our code) to milliseconds (the network): log scale so all fit.",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"inside Binance (match → sent)\",quantile=\"0.5\"}",
+          "legendFormat": "1 inside Binance (match → sent)",
+          "refId": "1 inside Binance (ma"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"binance→us (network)\",quantile=\"0.5\"}",
+          "legendFormat": "2 binance→us (network)",
+          "refId": "2 binance→us (networ"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.5\"}",
+          "legendFormat": "3 queue (received → handled)",
+          "refId": "3 queue (received → "
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.5\"}",
+          "legendFormat": "4 tick-to-trade (our code)",
+          "refId": "4 tick-to-trade (our"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"order-to-live (route + Bullet)\",quantile=\"0.5\"}",
+          "legendFormat": "5 order-to-live (route + Bullet)",
+          "refId": "5 order-to-live (rou"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "scaleDistribution": {
+              "type": "log",
+              "log": 10
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Tick-to-trade: our code",
+      "description": "Tick received → order out. Microseconds.",
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.5\"}",
+          "legendFormat": "p50",
+          "refId": "p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.99\"}",
+          "legendFormat": "p99",
+          "refId": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Queue: waiting before we look at an event",
+      "description": "Jitter shows up here first.",
+      "gridPos": {
+        "x": 12,
+        "y": 17,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.5\"}",
+          "legendFormat": "p50",
+          "refId": "p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.99\"}",
+          "legendFormat": "p99",
+          "refId": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    }
+  ]
+}

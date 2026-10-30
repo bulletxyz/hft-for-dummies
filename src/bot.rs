@@ -35,6 +35,10 @@ pub async fn run(config_path: &Path) -> Result<()> {
         tracing::warn!("LIVE: trading {} with real money", config.symbol);
     }
 
+    if let Some(port) = config.metrics_port {
+        telemetry::serve_metrics(port)?;
+    }
+
     let (bus, events) = mpsc::unbounded_channel();
     // Bullet first: it takes a second to connect, and Binance ticks queued
     // meanwhile would show up as fake queueing delay.

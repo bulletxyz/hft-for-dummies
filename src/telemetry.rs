@@ -19,6 +19,7 @@ use std::fmt::Write;
 use std::time::{Duration, Instant};
 
 use hdrhistogram::Histogram;
+use metrics_exporter_prometheus::PrometheusBuilder;
 
 use crate::events::{Event, Stamp};
 
@@ -95,6 +96,8 @@ impl Telemetry {
             Histogram::new_with_max(60_000_000, 3).expect("valid histogram bounds")
         });
         hist.saturating_record(micros.max(1));
+        // Also to Prometheus, if `metrics_port` is set (a no-op otherwise).
+        metrics::histogram!("hft_hop_seconds", "hop" => hop).record(micros as f64 / 1e6);
     }
 
     /// Record what an event tells us about latency. `now` is when the loop picked it up.
@@ -293,6 +296,17 @@ impl Telemetry {
         }
         out
     }
+}
+
+/// Serve every hop to Prometheus at `http://127.0.0.1:{port}/metrics`, as
+/// p50/p95/p99 over the last minute, for Grafana to draw (`infra/grafana`).
+pub fn serve_metrics(port: u16) -> anyhow::Result<()> {
+    PrometheusBuilder::new()
+        .with_http_listener(([127, 0, 0, 1], port))
+        .set_quantiles(&[0.5, 0.95, 0.99])?
+        .install()?;
+    tracing::info!("metrics for Grafana at http://127.0.0.1:{port}/metrics");
+    Ok(())
 }
 
 /// `at` on the wall clock, µs since 1970 (to compare with an exchange's clock).

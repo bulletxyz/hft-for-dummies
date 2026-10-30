@@ -43,6 +43,11 @@ pub struct Config {
     pub book_stale_secs: u64,
     /// How slowly the Binance→Bullet price gap (the "basis") is averaged.
     pub basis_halflife_secs: u64,
+
+    /// Serve latency metrics to Prometheus on this local port, for Grafana
+    /// (`infra/grafana`). Off when unset.
+    #[serde(default)]
+    pub metrics_port: Option<u16>,
 }
 
 impl Config {
@@ -100,6 +105,17 @@ mod tests {
     #[test]
     fn the_benchmark_config_is_valid() {
         assert!(!Config::load(Path::new("bench-live.toml")).unwrap().dry_run);
+    }
+
+    #[test]
+    fn metrics_are_off_unless_a_port_is_set() {
+        assert_eq!(
+            Config::load(Path::new("bot.toml")).unwrap().metrics_port,
+            None
+        );
+        let text = std::fs::read_to_string("bot.toml").unwrap() + "metrics_port = 9000\n";
+        let config: Config = toml::from_str(&text).unwrap();
+        assert_eq!(config.metrics_port, Some(9000));
     }
 
     #[test]
