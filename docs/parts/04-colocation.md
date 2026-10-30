@@ -136,6 +136,19 @@ Binance is now 1.5 ms away. Two surprises:
   300 µs to 6 µs: no browser, no laptop power management. That steadiness is
   what Part 8 tunes further.
 
+## Scoreboard
+
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 3 (laptop) (milliseconds):
+
+| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
+|---|---|---|---|---|
+| Part 3 (laptop) | 180 / 586 | 55 | 829 / 2,167 | 119 |
+| **Part 4** | **35.7 / 306** | 1.6 | 340 / 565 | 27 |
+
+Five times faster: Binance is now 1.6 ms away and Bullet accepts in 27 ms
+instead of 119. What's left is the queue. The bot still waits for every
+order, and ticks pile up behind it.
+
 ## What's next
 
 The bot still reconnects slowly when a socket goes quiet, and waits on every
