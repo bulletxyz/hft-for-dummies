@@ -96,6 +96,19 @@ Within our 8%, nothing stands out: atomic reference counts, reading the
 websocket, JSON parsing, the scheduler, each under 1%. A flat profile like
 this means the code-side work is done; the remaining wins are elsewhere.
 
+## Scoreboard
+
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 8 (milliseconds):
+
+| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
+|---|---|---|---|---|
+| Part 8 | 2.2 / 27 | 1.5 | 0.01 / 3.0 | 15 |
+| **Part 9** | **2.1 / 145** | 1.5 | 0.01 / 45 | 17 |
+
+Within noise, as predicted: the gains above are nanoseconds. The p99 is
+Binance's tail on that run, plus one 45 ms stall in our queue that we didn't
+chase.
+
 ## What's next
 
 Part 10 goes back to the network: what else AWS can do for the last mile.
