@@ -5,4 +5,4 @@ scrape_configs:
   - job_name: hft-bot
     static_configs:
       # The bot on this computer (or the Tokyo server through an SSH tunnel).
-      - targets: ["host.docker.internal:9898"]
+      - targets: ["host.docker.internal:9000"]

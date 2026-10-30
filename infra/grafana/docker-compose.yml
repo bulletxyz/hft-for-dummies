@@ -1,6 +1,6 @@
 # Prometheus + Grafana for the bot's latency (Part 3).
 #
-#   1. set `metrics_port = 9898` in bot.toml and run the bot
+#   1. set `metrics_port = 9000` in bot.toml and run the bot
 #   2. docker compose up        (in this folder)
 #   3. open http://localhost:3000 (no login)
 #
