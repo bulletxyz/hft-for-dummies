@@ -42,7 +42,7 @@ The table is enough to compare runs, but a picture shows how latency moves
 over time. Production bots export their histograms to
 [Prometheus](https://prometheus.io/), a database for numbers over time, and
 draw them in [Grafana](https://grafana.com/). This bot can too, through the
-[`metrics`](https://docs.rs/metrics) crate: set `metrics_port = 9000` in
+[`metrics`](https://docs.rs/metrics) crate: set `metrics_port = 9898` in
 `bot.toml`, run the bot, then (with Docker installed):
 
 ```sh

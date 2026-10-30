@@ -113,9 +113,9 @@ mod tests {
             Config::load(Path::new("bot.toml")).unwrap().metrics_port,
             None
         );
-        let text = std::fs::read_to_string("bot.toml").unwrap() + "metrics_port = 9000\n";
+        let text = std::fs::read_to_string("bot.toml").unwrap() + "metrics_port = 9898\n";
         let config: Config = toml::from_str(&text).unwrap();
-        assert_eq!(config.metrics_port, Some(9000));
+        assert_eq!(config.metrics_port, Some(9898));
     }
 
     #[test]
