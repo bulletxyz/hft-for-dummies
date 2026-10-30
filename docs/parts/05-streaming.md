@@ -91,17 +91,17 @@ link behaves) and times how long the bot takes to notice:
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
-on the Tokyo server, against Part 4 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), live on the Tokyo
+server over Bullet's direct endpoint, against Part 4:
 
-| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
-|---|---|---|---|---|
-| Part 4 | 35.7 / 306 | 1.6 | 340 / 565 | 27 |
-| **Part 5** | **37.2 / 204** | 1.5 | 199 / 449 | 27 |
+| | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
+|---|---|---|---|---|---|
+| Part 4 | 26.8 / 110 ms | 1.6 ms | 1 µs | 24.6 / 89 ms | 93 / 350 ms |
+| **Part 5** | **25.5 / 121 ms** | 1.6 ms | 1 µs | 23.2 / 119 ms | 100 / 540 ms |
 
-No change, as expected. This part is about noticing a dead connection in
-3 seconds instead of 30, and a healthy run never exercises that. (The p99s
-differ, but p99 moves this much between identical runs.)
+No change, as expected. This part notices a dead connection in 3 seconds
+instead of 10-30, and gives every order an expiry; a healthy run exercises
+neither.
 
 ## What's next
 
