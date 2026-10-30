@@ -48,7 +48,11 @@ pub async fn connect(config: &Config, bus: Bus) -> Result<Bullet> {
     };
     let signer = keypair.as_ref().map(Keypair::address);
     let client = Client::builder()
-        .network(Network::from(config.network.as_str()))
+        .network(match &config.api_url {
+            // Same API, different front door (e.g. one that skips Cloudflare).
+            Some(url) => Network::Custom(url.clone()),
+            None => Network::from(config.network.as_str()),
+        })
         .maybe_keypair(keypair)
         .user_actions(vec![
             UserActionDiscriminants::PlaceOrders,

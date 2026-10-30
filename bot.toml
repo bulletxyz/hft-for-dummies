@@ -2,6 +2,7 @@
 # not a tuned value. Change them and watch what happens.
 
 network = "mainnet"
+# api_url = "https://..."     # a direct endpoint, if Bullet has whitelisted you (Part 10)
 
 # true: watch the market and log the quotes we WOULD place. No key, no money.
 # Set to false only after reading "Going live" in the README.
