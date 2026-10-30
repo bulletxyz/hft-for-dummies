@@ -35,8 +35,11 @@ pub async fn run(config_path: &Path) -> Result<()> {
         tracing::warn!("LIVE: trading {} with real money", config.symbol);
     }
 
-    if let Some(port) = config.metrics_port {
-        telemetry::serve_metrics(port)?;
+    // Metrics are a window, not a dependency: if the port is taken, run without.
+    if let Some(port) = config.metrics_port
+        && let Err(e) = telemetry::serve_metrics(port)
+    {
+        tracing::warn!("no metrics for Grafana (port {port}): {e}");
     }
 
     let (bus, events) = mpsc::unbounded_channel();
