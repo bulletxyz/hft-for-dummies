@@ -28,13 +28,14 @@ organisation that runs that network. From our Tokyo server:
 
 Binance is one hop away, inside Amazon's network (AS16509): we're in the same
 data centre. Bullet's address belongs to Cloudflare (AS13335), a proxy in
-front of Bullet's servers. That proxy turned out to be the most interesting
-thing in the whole series.
+front of Bullet's servers. That proxy turned out to matter more than
+anything else on the path.
 
 ## Incident: the Dallas detour
 
-**The symptom.** From Part 4 on, our Tokyo server saw Bullet's order book
-arrive ~100 ms after Bullet stamped it, and HTTPS requests take ~220 ms. Binance,
+**The symptom.** On some runs from Part 4 on, our Tokyo server saw Bullet's
+order book arrive ~100 ms after Bullet stamped it, and HTTPS requests take
+~220 ms. Binance,
 from the same server: 1.5 ms. It looked as if Bullet simply ran far from Tokyo.
 
 **The wrong leads.** `mtr` (above) said Cloudflare was 1.6 ms away, so it
@@ -146,7 +147,8 @@ network-optimised instance (the `n` in `c8gn`) for higher allowances.
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 9 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
+on the Tokyo server, against Part 9 (milliseconds):
 
 | | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
 |---|---|---|---|---|
@@ -164,7 +166,7 @@ orders in 21 ms through Cloudflare.
 | Binance → us | 1.5 ms |
 | our reaction (tick → order sent) | ~0.01 ms |
 | Bullet → us (book) | 4.6 ms via Tokyo, ~100 ms via Dallas |
-| us → Bullet → order accepted | ~100-200 ms (measured via Dallas and from a laptop) |
+| us → Bullet → order accepted | ~20 ms via Tokyo, ~220 ms via Dallas |
 
 Our side of the loop is now microseconds, and Binance is next door. What's
 left depends on which Cloudflare site Bullet's traffic is handled in, which
