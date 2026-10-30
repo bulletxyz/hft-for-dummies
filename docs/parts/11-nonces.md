@@ -42,8 +42,8 @@ buys you.
 ## Using it: a lane for pulls
 
 Since Part 6 the executor sends one batch at a time. That keeps each quote's
-requests in order (an amend of an order must arrive after the order), but it
-means "cancel everything" can sit behind an amend that's in flight for tens of
+requests in order (a move of an order must arrive after the order), but it
+means "cancel everything" can sit behind a request that's in flight for tens of
 milliseconds (far longer in the tail), at exactly the moment you want out of the market.
 
 The executor now has two lanes (`src/executor.rs`):
@@ -62,7 +62,7 @@ orders it just placed (`undo_if_pulled`).
 
 Live from a laptop, 4 minutes quoting 2 bps wide: 44 fills, every pull (`pull: decided → all
 cancelled`) completed in one round trip (~115 ms) instead of waiting for
-in-flight amends, and the bot's final position matched the exchange's.
+in-flight requests, and the bot's final position matched the exchange's.
 
 ## Scoreboard
 
