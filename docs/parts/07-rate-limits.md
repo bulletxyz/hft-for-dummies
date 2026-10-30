@@ -12,7 +12,7 @@ Bullet [documents its limits](https://tradingapi.bullet.xyz/docs/connectivity.md
 | What | Limit | Over it |
 |---|---|---|
 | HTTP requests, per IP | 50/s, bursts of 150 | `429` from Cloudflare |
-| Transactions (orders, cancels, amends), per signing key | 240/s | `503 The sender was rate-limited` |
+| Transactions (orders and cancels), per signing key | 240/s | `503 The sender was rate-limited` |
 
 Our bot sends well under one transaction a second, nowhere near 240. But a
 bug, a fast market or an aggressive setting can change that in an instant,
@@ -31,26 +31,26 @@ empty, you wait. Short bursts are fine, the average can't exceed the rate.
 Not all requests are equal. A new order *adds* risk; a cancel *removes* it.
 So in the executor:
 
-- New orders and amends must leave a quarter of the bucket in reserve. If
+- Requests with new orders must leave a quarter of the bucket in reserve. If
   they can't, they're held back: the quote they'd have placed would be stale
   by the time a token freed up anyway.
 - Cancels can use the reserve, and if the bucket is truly empty they wait
   for the next token rather than give up.
-- When an amend is held back, the old order is cancelled instead (it would
+- When a quote move is held back, the old order is cancelled instead (it would
   otherwise rest at a price we no longer want).
 
 ## Not every reject is an error
 
-Part 6 handled one reject ("order not found"). (A reminder: our quotes are
-*post-only*: they may only rest on the book, and Bullet rejects one that
-would trade immediately.) The executor now sorts them
-(`bullet::classify`):
+In Part 6 any rejected request made the bot cancel everything and start
+again. (A reminder: our quotes are *post-only*: they may only rest on the
+book, and Bullet rejects one that would trade immediately.) A rejected
+request did nothing, so the old quote it meant to move still rests. The
+executor now sorts rejects (`bullet::classify`):
 
 | Reject | Meaning | What the bot does |
 |---|---|---|
-| order not found | it filled or was cancelled first | drop it, retry the rest |
-| post-only would cross | the book moved while our order was in flight | nothing rests; requote |
-| rate limited | over a limit | empty our bucket (back off), requote later |
+| post-only would cross | the book moved while our order was in flight | cancel the old quote; requote |
+| rate limited | over a limit | cancel the old quote, empty our bucket (back off), requote later |
 | anything else | unknown | cancel everything and start fresh |
 
 > **Incident: the misleading error.** Before this part, a post-only order
@@ -71,7 +71,7 @@ no minimum gap between requotes:
 | | budget 50/s | budget 2/s |
 |---|---|---|
 | order requests per second | 0.32 | 0.44 |
-| amends / plain places | 57 / 1 | 49 / 31 |
+| quote moves / plain places | 57 / 1 | 49 / 31 |
 | held back by our own budget | 0 | 55 |
 | rejected by Bullet for rate | 0 | 0 |
 
@@ -82,7 +82,7 @@ Two lessons:
    two to three seconds: about 0.1% of Bullet's limit. Rate
    limits bite in bursts (a fast market, a reconnect, a bug), which is why
    the budget is there.
-2. **Too tight a budget backfires.** At 2/s, 55 amends were held back. Each
+2. **Too tight a budget backfires.** At 2/s, 55 quote moves were held back. Each
    became a cancel now and a fresh order later: *more* requests in total
    (0.44/s vs 0.32/s), and more time with no quote on the book. Pick a
    budget comfortably above your normal peak and well below the exchange's
