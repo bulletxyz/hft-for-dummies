@@ -1,8 +1,7 @@
 # Part 7: Stay inside the limits
 
-Since Part 6 nothing stops the bot from sending requests as fast as the
-market moves. Every exchange caps that, and the time you hit the cap is the
-worst possible time: the market is moving fast, and you need to cancel. Code:
+Every exchange caps how fast you may send requests, and the time you hit
+the cap is the worst possible time: the market is moving fast, and you need to cancel. Code:
 [`part-7`](https://github.com/bulletxyz/hft-for-dummies/tree/part-7) ·
 [diff](https://github.com/bulletxyz/hft-for-dummies/compare/part-6...part-7).
 
@@ -15,7 +14,7 @@ Bullet [documents its limits](https://tradingapi.bullet.xyz/docs/connectivity.md
 | HTTP requests, per IP | 50/s, bursts of 150 | `429` from Cloudflare |
 | Transactions (orders, cancels, amends), per signing key | 240/s | `503 The sender was rate-limited` |
 
-Our bot sends a couple of transactions a second, nowhere near 240. But a
+Our bot sends well under one transaction a second, nowhere near 240. But a
 bug, a fast market or an aggressive setting can change that in an instant,
 so we budget ourselves well below the exchange's cap and find out on our own
 terms.
@@ -42,7 +41,9 @@ So in the executor:
 
 ## Not every reject is an error
 
-Part 6 handled one reject ("order not found"). The executor now sorts them
+Part 6 handled one reject ("order not found"). (A reminder: our quotes are
+*post-only*: they may only rest on the book, and Bullet rejects one that
+would trade immediately.) The executor now sorts them
 (`bullet::classify`):
 
 | Reject | Meaning | What the bot does |
@@ -89,7 +90,8 @@ Two lessons:
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 6 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
+on the Tokyo server, against Part 6 (milliseconds):
 
 | | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
 |---|---|---|---|---|
