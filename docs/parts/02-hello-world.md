@@ -10,10 +10,11 @@ simplest form:
 
 - **Feeds** (`src/binance.rs`, `src/bullet.rs`): Binance's best bid/ask and
   Bullet's order book arrive as events on one queue.
-- **Fair price** (`src/fair_value.rs`): Binance mid plus the average gap
-  between Bullet and Binance, learned over the first minute.
-- **Strategy** (`src/strategy.rs`): quote `spread_bps` either side of fair,
-  lean against inventory (`skew_bps`), never past `max_position`.
+- **Fair price** (`src/fair_value.rs`): Binance mid plus the gap between
+  Bullet and Binance, a running average (`basis_halflife_secs`), after a
+  minute of warm-up.
+- **Strategy** (`src/strategy.rs`): quote `spread_bps` (1 bp = 0.01%) either
+  side of fair, lean against inventory (`skew_bps`), never past `max_position`.
 - **Executor** (`src/executor.rs`): cancel and replace when fair value moves
   more than `requote_threshold_bps`. It waits for each order to be accepted,
   which is the first thing later parts speed up.
@@ -37,7 +38,8 @@ These all happened in the first afternoon of running this bot with real
 money. Each is now handled in the code you're running.
 
 > **Incident: the silent socket.** A wifi blip left the Binance connection
-> half-open: no error, no data. The bot correctly stopped quoting on a stale
+> half-open (it looked open, but nothing got through): no error, no data.
+> The bot correctly stopped quoting on a stale
 > price, and stayed stopped until restarted. *Fix:* if Binance sends nothing
 > for 10 seconds, reconnect (`src/binance.rs`). *Lesson:* silence is not the
 > same as "nothing happened". Part 5 comes back to this.

@@ -2,7 +2,7 @@
 
 Code for the *HFT for dummies* series: a market maker that quotes SOL-USD on
 [Bullet](https://app.bullet.xyz/trade?r=HFT4DUMMIES), priced off Binance's SOL
-perp. Each post is one change to this repo.
+perpetual future (perp). Each post is one change to this repo.
 
 > Market making can lose money. The bot starts in **dry run**: no key, no
 > orders.
@@ -15,11 +15,11 @@ flowchart LR
     subgraph BOT["Your bot"]
         direction LR
         RX["<b>Receive + parse</b><br/>typed events<br/><i>Parts 5, 9</i>"]
-        FAIR["<b>Fair price</b><br/>ref mid / microprice<br/><i>Part 2</i>"]
+        FAIR["<b>Fair price</b><br/>Binance mid + basis<br/><i>Part 2</i>"]
         STRAT["<b>Strategy</b><br/>quotes + inventory skew<br/><i>Parts 2, 9</i>"]
         EXEC["<b>Executor</b><br/>non-blocking submit<br/><i>Parts 6, 7, 11</i>"]
     end
-    BUL["<b>Bullet</b><br/>order WS<br/><i>Parts 4, 10</i>"]
+    BUL["<b>Bullet</b><br/>order API (HTTPS)<br/><i>Parts 4, 10</i>"]
     BOOK["<b>Bullet book</b><br/>venue mid / trades<br/><i>Part 5</i>"]
     FILLS["<b>Acks + fills</b><br/>event listener<br/><i>Parts 5, 6</i>"]
     STATE["<b>Inventory / state</b><br/>feeds Strategy<br/><i>Part 2</i>"]

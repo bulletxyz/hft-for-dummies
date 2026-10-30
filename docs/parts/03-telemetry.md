@@ -24,9 +24,9 @@ per hop and logs the table every 30 seconds and on exit:
 | bullet: place/cancel sent → accepted | request round trip to Bullet | ours |
 | bullet: place sent → live on book | until Bullet's websocket confirms the order rests | ours |
 
-**Read p99, not p50.** p50 is the typical case. p99 is the slowest 1%, and
-that's when you get picked off: the moment the price jumps is exactly when
-everything is busiest. HDR histograms keep both cheaply and accurately.
+**p99 is what costs you money.** p50 is the typical case. p99 is the slowest
+1%, and that's when you get picked off: the moment the price jumps is exactly
+when everything is busiest. HDR histograms keep both cheaply and accurately.
 
 ## The scoreboard
 
@@ -55,9 +55,14 @@ live, requoting often to get plenty of samples. Ten minutes of it:
 cargo run --release -- run bench-live.toml
 ```
 
-Read p50 as the trend. A p99 can move tens of milliseconds between two
-identical runs, mostly with Binance's own tail, so don't trust one run's
-p99 to show a small improvement.
+This trades real money: it needs the funded, delegated key from
+[Going live](../../README.md#going-live). On dry run, read our numbers instead.
+
+Optimise for p99, but judge a single run by p50. A p99 can move tens of
+milliseconds between two identical runs, mostly with Binance's own tail, so
+one run's p99 can't show a small improvement.
+
+The goal for the series: tick-to-trade under 20 ms p50.
 
 ## Clocks
 
@@ -85,9 +90,7 @@ sudo chronyc makestep           # Linux with chrony
 ```
 
 Servers run [chrony](https://chrony-project.org/), which corrects continuously
-against a nearby source and keeps the clock within microseconds (Part 4). If
-our clock is behind, some messages would appear to arrive before they were
-sent; the bot counts those and tells you to sync instead of printing nonsense.
+against a nearby source and keeps the clock within microseconds (Part 4).
 
 ## Try it
 
@@ -129,9 +132,7 @@ Four lessons:
 3. **Waiting is the real cost.** The bot waits for each order request to
    finish before reading the next event, so every Binance tick that arrives
    meanwhile sits in the queue: p99 of almost 3 seconds. Part 6 fixes that.
-4. **You can't measure one-way network latency with an unsynced clock.** The
-   first run was on a laptop 288 ms behind real time, so every message
-   "arrived before it was sent" (see Clocks above).
+4. **Sync your clock before measuring one-way latency** (see Clocks).
 
 ## Scoreboard
 
