@@ -129,8 +129,31 @@ you ask. They aren't all equally close, so `netcheck` times each one
 ```
 
 Today they're all within 0.2 ms of each other, so it doesn't matter which we
-get. When it does, a bot can resolve the name itself and connect to the
-fastest address.
+get. Bullet's direct endpoint is different: three addresses, one load
+balancer per zone, and a simple request takes about 3 ms on the nearest and
+4-6 ms on the farthest. A bot could look the name up itself and stick to the
+fastest. We don't: a load balancer's addresses change over time, and a
+pinned address that goes away takes the bot down with it. A millisecond isn't
+worth an outage.
+
+## Orders over the websocket?
+
+Bullet also accepts orders over its websocket (`order.place`,
+`order.cancel`), on a connection that's already open. That sounds faster
+than an HTTPS request, so we measured before building it: the same harmless
+transaction, alternating between the two, 40 times each, from the Tokyo
+server over the direct endpoint.
+
+| | p50 | p90 |
+|---|---|---|
+| HTTPS | 10 ms | 13 ms |
+| websocket | 11 ms | 17-20 ms |
+
+No faster, and the websocket's reply only says the transaction was
+*submitted*, not whether it succeeded, which the executor needs (Part 7).
+The time is in Bullet processing the transaction, not in how it gets there.
+So the bot stays on HTTPS: measure first, and don't build what the numbers
+don't ask for.
 
 ## Drops you'd never see
 
