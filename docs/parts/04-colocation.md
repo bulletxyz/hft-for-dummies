@@ -101,11 +101,14 @@ One microsecond. Now the network rows in the telemetry are real.
 ## Deploy
 
 ```sh
-./infra/bot/deploy.sh           # create the server, copy the code, build, start
+./infra/bot/deploy.sh --live    # create the server, copy the code, build, start trading
 ./infra/bot/deploy.sh logs      # follow the bot
-./infra/bot/deploy.sh bench     # the Part 3 benchmark, live, on the server (real money)
+./infra/bot/deploy.sh bench     # the Part 3 benchmark on the server (real money)
 ./infra/bot/deploy.sh destroy   # stop the bot (it cancels its orders) and delete the server
 ```
+
+Without `--live` it deploys in dry run. Either way `bot.toml` stays as
+shipped: for a live run the server makes a copy with `dry_run` off.
 
 [Terraform](https://developer.hashicorp.com/terraform) describes the server in
 `infra/bot/main.tf`; `cloud-init.yaml` installs what the build needs on first
