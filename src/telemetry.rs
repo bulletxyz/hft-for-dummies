@@ -1,4 +1,4 @@
-//! Telemetry: how long each hop of the loop takes, from a Binance trade to
+//! Telemetry: how long each hop of the loop takes, from a Binance update to
 //! our order resting on Bullet.
 //!
 //! You can't speed up what you haven't measured. Every market event carries a
@@ -10,9 +10,9 @@
 //! - **p99**: the slow 1%. This is the one that matters: a market maker is
 //!   picked off in its slowest moments, not its average ones.
 //!
-//! Hops that compare our clock with an exchange's ("network") are only as
-//! accurate as the two clocks agree, often within a few milliseconds on a
-//! laptop. Hops measured on our own clock are exact.
+//! Hops that compare our clock with an exchange's are only as accurate as the
+//! two clocks agree: within microseconds on a synced server, but often hundreds
+//! of milliseconds off on a laptop. Hops measured on our own clock are exact.
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
@@ -26,19 +26,19 @@ use crate::events::{Event, Stamp};
 /// How often to print the table.
 const REPORT_EVERY: Duration = Duration::from_secs(30);
 
-/// The headline: from the Binance trade (or book change) that moved our price
-/// until Bullet opens our new order. How long our quote lags the market.
-pub const END_TO_END: &str = "END-TO-END: Binance trade → our order open";
+/// The headline: from the Binance update that moved our price until Bullet
+/// opens our new order. How long our quote lags the market.
+pub const END_TO_END: &str = "END-TO-END: Binance update → our order open";
 
 // The steps of that trip, in order. They roughly add up to it.
 pub const BINANCE_MATCH_TO_SEND: &str = "inside Binance (match → sent)";
 pub const BINANCE_NETWORK: &str = "binance→us (network)";
 pub const QUEUE: &str = "queue (received → handled)";
-/// Our reaction: from receiving the tick to handing the order to the executor.
+/// Our reaction: from picking up the Binance update to deciding on orders.
 pub const TICK_TO_TRADE: &str = "tick-to-trade (our code)";
-/// From our request leaving until Bullet's matching engine opens the order
-/// (its own timestamp): the route there and Bullet's processing.
-pub const ORDER_TO_LIVE: &str = "order-to-live (route + Bullet)";
+/// From that decision until Bullet's matching engine opens the order (its own
+/// timestamp): sending it, the route there and Bullet's processing.
+pub const ORDER_TO_LIVE: &str = "order-to-live (send + route + Bullet)";
 const TRIP: [&str; 5] = [
     BINANCE_MATCH_TO_SEND,
     BINANCE_NETWORK,
@@ -48,7 +48,7 @@ const TRIP: [&str; 5] = [
 ];
 
 // Also measured, overlapping the trip or off it.
-pub const DECIDE: &str = "decide (part of tick-to-trade)";
+pub const DECIDE: &str = "decide (every requote)";
 pub const SUBMIT_PLACE: &str = "Bullet's reply to a place (round trip)";
 pub const SUBMIT_CANCEL: &str = "Bullet's reply to a cancel (round trip)";
 pub const BULLET_NETWORK: &str = "Bullet book → us (network)";
@@ -56,19 +56,14 @@ pub const BULLET_NETWORK: &str = "Bullet book → us (network)";
 pub struct Telemetry {
     /// Microseconds, per hop.
     hops: BTreeMap<&'static str, Histogram<u64>>,
-    /// When each order we placed was sent (µs since 1970, our clock), until
-    /// Bullet reports it open.
-    placed_at: HashMap<u64, u64>,
-    /// For each order we decided to send: when the Binance event that moved
-    /// our price happened (µs since 1970, Binance's clock).
-    triggered_by: HashMap<u64, u64>,
-    /// When Bullet opened orders we hadn't yet heard our own request finish
-    /// for (µs since 1970, Bullet's clock): its websocket can beat its reply.
-    live_at: HashMap<u64, u64>,
-    /// Messages that arrived "before" the exchange sent them, and by how much
-    /// at worst: our clock is behind theirs, so network numbers are wrong.
-    clock_behind: u64,
-    clock_behind_max_us: u64,
+    /// For each order we decided to place, until Bullet opens it: when we
+    /// decided (µs since 1970, our clock) and, if a Binance update moved our
+    /// price, when that happened (Binance's clock).
+    decided: HashMap<u64, Decision>,
+    /// Times that can't be true unless a clock is off, and by how much at worst.
+    our_clock_behind: Skew,
+    our_clock_ahead: Skew,
+    exchanges_disagree: Skew,
     last_report: Instant,
 }
 
@@ -76,11 +71,10 @@ impl Telemetry {
     pub fn new() -> Self {
         Self {
             hops: BTreeMap::new(),
-            placed_at: HashMap::new(),
-            triggered_by: HashMap::new(),
-            live_at: HashMap::new(),
-            clock_behind: 0,
-            clock_behind_max_us: 0,
+            decided: HashMap::new(),
+            our_clock_behind: Skew::default(),
+            our_clock_ahead: Skew::default(),
+            exchanges_disagree: Skew::default(),
             last_report: Instant::now(),
         }
     }
@@ -95,7 +89,8 @@ impl Telemetry {
             // Up to 1 minute at 3 significant figures. `new_with_max` only fails on bad bounds.
             Histogram::new_with_max(60_000_000, 3).expect("valid histogram bounds")
         });
-        hist.saturating_record(micros.max(1));
+        let micros = micros.max(1); // a log-scale chart can't show zero
+        hist.saturating_record(micros);
         // Also to Prometheus, if `metrics_port` is set (a no-op otherwise).
         metrics::histogram!("hft_hop_seconds", "hop" => hop).record(micros as f64 / 1e6);
     }
@@ -118,24 +113,12 @@ impl Telemetry {
             }
             Event::Sent {
                 kind,
-                client_ids,
                 started,
                 finished,
                 ..
             } => {
                 let hop = match kind {
-                    crate::events::SentKind::Place => {
-                        let sent_us = wall_clock(*started);
-                        for id in client_ids {
-                            match self.live_at.remove(id) {
-                                Some(opened) => self.order_to_live(sent_us, opened),
-                                None => {
-                                    self.placed_at.insert(*id, sent_us);
-                                }
-                            }
-                        }
-                        SUBMIT_PLACE
-                    }
+                    crate::events::SentKind::Place => SUBMIT_PLACE,
                     crate::events::SentKind::Cancel => SUBMIT_CANCEL,
                 };
                 self.record(hop, finished.saturating_duration_since(*started));
@@ -145,46 +128,52 @@ impl Telemetry {
                 let Some(opened) = stamp.exchange_match_unix_us.or(stamp.exchange_unix_us) else {
                     return;
                 };
-                if let Some(matched) = self.triggered_by.remove(client_id) {
-                    self.between(END_TO_END, matched, opened);
-                }
-                match self.placed_at.remove(client_id) {
-                    Some(sent_us) => self.order_to_live(sent_us, opened),
-                    None => {
-                        self.live_at.insert(*client_id, opened);
-                    }
+                if let Some(decision) = self.decided.remove(client_id) {
+                    self.order_opened(decision, opened, stamp.received_unix_us);
                 }
             }
             _ => {}
         }
     }
 
-    /// The bot decided to send these orders because of the Binance event
-    /// stamped `tick`; remember it until we know when they actually left.
-    pub fn on_decision(&mut self, intents: &[crate::events::Intent], tick: Option<&Stamp>) {
-        let Some(tick) = tick else { return };
-        let Some(matched) = tick.exchange_match_unix_us.or(tick.exchange_unix_us) else {
-            return;
+    /// The bot decided, at `decided`, to send these orders. `tick` is the
+    /// Binance update that moved our price, if one did.
+    pub fn on_decision(
+        &mut self,
+        intents: &[crate::events::Intent],
+        tick: Option<&Stamp>,
+        decided: Instant,
+    ) {
+        let decision = Decision {
+            decided_us: wall_clock(decided),
+            matched_us: tick.and_then(|t| t.exchange_match_unix_us.or(t.exchange_unix_us)),
         };
         for intent in intents {
             if let crate::events::Intent::Place(order) = intent {
-                self.triggered_by.insert(order.client_id, matched);
+                self.decided.insert(order.client_id, decision);
             }
         }
     }
 
-    fn order_to_live(&mut self, sent_us: u64, opened: u64) {
-        self.between(ORDER_TO_LIVE, sent_us, opened);
-    }
-
-    /// Record `to - from` (µs since 1970, possibly on two clocks). A negative
-    /// gap means the clocks disagree, so it's flagged rather than recorded.
-    fn between(&mut self, hop: &'static str, from: u64, to: u64) {
-        if to < from {
-            self.clock_behind += 1;
-            self.clock_behind_max_us = self.clock_behind_max_us.max(from - to);
+    /// Bullet opened an order at `opened` (its clock), and we heard about it at
+    /// `heard` (our clock).
+    fn order_opened(&mut self, decision: Decision, opened: u64, heard: u64) {
+        if let Some(matched) = decision.matched_us {
+            // Binance's clock against Bullet's: ours plays no part.
+            if opened < matched {
+                self.exchanges_disagree.saw(matched - opened);
+            } else {
+                self.record_us(END_TO_END, opened - matched);
+            }
+        }
+        // Bullet must open the order after we decided and before we hear it did.
+        // Outside that window, our clock disagrees with Bullet's.
+        if opened > heard {
+            self.our_clock_behind.saw(opened - heard);
+        } else if opened < decision.decided_us {
+            self.our_clock_ahead.saw(decision.decided_us - opened);
         } else {
-            self.record_us(hop, to - from);
+            self.record_us(ORDER_TO_LIVE, opened - decision.decided_us);
         }
     }
 
@@ -204,13 +193,13 @@ impl Telemetry {
         };
         format!(
             "SCOREBOARD end-to-end p50 {} ms p95 {} ms | binance→us p50 {} ms | \
-             tick-to-trade p50 {} µs p99 {} µs | order-to-live p50 {} ms p95 {} ms | \
+             tick-to-trade p50 {} µs p95 {} µs | order-to-live p50 {} ms p95 {} ms | \
              queue p99 {} ms max {} ms | orders {}",
             ms(END_TO_END, 0.5),
             ms(END_TO_END, 0.95),
             ms(BINANCE_NETWORK, 0.5),
             us(TICK_TO_TRADE, 0.5),
-            us(TICK_TO_TRADE, 0.99),
+            us(TICK_TO_TRADE, 0.95),
             ms(ORDER_TO_LIVE, 0.5),
             ms(ORDER_TO_LIVE, 0.95),
             ms(QUEUE, 0.99),
@@ -226,8 +215,7 @@ impl Telemetry {
         };
         if stamp.received_unix_us < sent {
             // Received before it was sent: our clock is behind theirs.
-            self.clock_behind += 1;
-            self.clock_behind_max_us = self.clock_behind_max_us.max(sent - stamp.received_unix_us);
+            self.our_clock_behind.saw(sent - stamp.received_unix_us);
             return;
         }
         self.record_us(hop, stamp.received_unix_us - sent);
@@ -240,11 +228,7 @@ impl Telemetry {
             tracing::info!("latency so far:\n{}", self.table());
             // Orders that never opened (rejected, or a dry run) would pile up.
             let cutoff = unix_us().saturating_sub(REPORT_EVERY.as_micros() as u64);
-            self.placed_at.retain(|_, sent| *sent > cutoff);
-            self.live_at.retain(|_, opened| *opened > cutoff);
-            if self.triggered_by.len() > 10_000 {
-                self.triggered_by.clear();
-            }
+            self.decided.retain(|_, d| d.decided_us > cutoff);
         }
     }
 
@@ -301,16 +285,51 @@ impl Telemetry {
                 self.row(&mut out, &format!("  {hop}"), hop);
             }
         }
-        if self.clock_behind > 0 {
+        let sync = "Sync it (macOS: sudo sntp -sS time.apple.com; Linux: chrony).";
+        for (skew, what) in [
+            (&self.our_clock_behind, "your clock is behind an exchange's"),
+            (&self.our_clock_ahead, "your clock is ahead of Bullet's"),
+        ] {
+            if skew.count > 0 {
+                let _ = writeln!(
+                    out,
+                    "  ! {} times {what} by at least {:.0} ms, so the rows that compare\n    \
+                     clocks are wrong. {sync}",
+                    skew.count,
+                    skew.max_us as f64 / 1000.0
+                );
+            }
+        }
+        if self.exchanges_disagree.count > 0 {
             let _ = writeln!(
                 out,
-                "  ! {} messages arrived before the exchange sent them: your clock is behind by at least {:.0} ms,\n    \
-                 so the network rows are wrong. Sync it (macOS: sudo sntp -sS time.apple.com; Linux: chrony).",
-                self.clock_behind,
-                self.clock_behind_max_us as f64 / 1000.0
+                "  ! {} times Binance's and Bullet's clocks disagree by at least {:.0} ms \
+                 (not yours): end-to-end skipped those.",
+                self.exchanges_disagree.count,
+                self.exchanges_disagree.max_us as f64 / 1000.0
             );
         }
         out
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Decision {
+    decided_us: u64,
+    matched_us: Option<u64>,
+}
+
+/// How often two clocks disagreed, and by how much at worst.
+#[derive(Default)]
+struct Skew {
+    count: u64,
+    max_us: u64,
+}
+
+impl Skew {
+    fn saw(&mut self, by_us: u64) {
+        self.count += 1;
+        self.max_us = self.max_us.max(by_us);
     }
 }
 
@@ -341,7 +360,6 @@ mod tests {
     use rust_decimal::Decimal;
 
     use super::*;
-    use crate::events::SentKind;
 
     fn stamp(received_at: Instant, received_unix_us: u64, sent: u64, matched: u64) -> Stamp {
         Stamp {
@@ -395,54 +413,51 @@ mod tests {
             "a negative gap is not a latency"
         );
         assert!(
-            t.table().contains("your clock is behind by at least 5 ms"),
+            t.table()
+                .contains("your clock is behind an exchange's by at least 5 ms"),
             "{}",
             t.table()
         );
     }
 
-    fn decided(t: &mut Telemetry, client_id: u64, matched: u64) {
+    fn order(client_id: u64) -> crate::events::Intent {
         use crate::events::{Intent, Order, Side};
-        let tick = Stamp {
-            exchange_match_unix_us: Some(matched),
-            ..Stamp::at(Instant::now())
-        };
-        let order = Order {
+        Intent::Place(Order {
             side: Side::Buy,
             price: Decimal::ONE,
             size: Decimal::ONE,
             client_id,
-        };
-        t.on_decision(&[Intent::Place(order)], Some(&tick));
+        })
     }
 
-    /// Bullet's websocket reports our order open, stamped `opened` on its clock.
-    fn opened(t: &mut Telemetry, client_id: u64, opened: u64) {
+    /// We decided, at `decided` (our clock), to place `client_id` because of
+    /// the Binance update stamped `matched` (Binance's clock).
+    fn decided(t: &mut Telemetry, client_id: u64, matched: u64, decided: Instant) {
+        let tick = Stamp {
+            exchange_match_unix_us: Some(matched),
+            ..Stamp::at(decided)
+        };
+        t.on_decision(&[order(client_id)], Some(&tick), decided);
+    }
+
+    /// Bullet opened the order at `opened` (its clock); its confirmation
+    /// reached us at `received` (our clock).
+    fn opened(t: &mut Telemetry, client_id: u64, opened: u64, received: u64) {
         let stamp = Stamp {
+            received_unix_us: received,
             exchange_match_unix_us: Some(opened),
             ..Stamp::at(Instant::now())
         };
         t.on_event(&Event::OrderLive { client_id, stamp }, Instant::now());
     }
 
-    fn sent(t: &mut Telemetry, client_id: u64, started: Instant) {
-        t.on_event(
-            &Event::Sent {
-                kind: SentKind::Place,
-                client_ids: vec![client_id],
-                started,
-                finished: Instant::now(),
-            },
-            Instant::now(),
-        );
-    }
-
     #[test]
-    fn end_to_end_runs_from_the_binance_trade_to_bullet_opening_our_order() {
+    fn end_to_end_runs_from_the_binance_update_to_bullet_opening_our_order() {
         let mut t = Telemetry::new();
-        // Binance's trade at 1.000000 s, Bullet opens our order at 1.015000 s.
-        decided(&mut t, 4, 1_000_000);
-        opened(&mut t, 4, 1_015_000);
+        let now = unix_us();
+        // Binance's update 15 ms before Bullet opened our order.
+        decided(&mut t, 4, now - 5_000, Instant::now());
+        opened(&mut t, 4, now + 10_000, now + 12_000);
         assert_near(p50_us(&t, END_TO_END), 15_000);
         assert!(
             t.scoreboard().starts_with("SCOREBOARD end-to-end p50 15.0"),
@@ -452,25 +467,53 @@ mod tests {
     }
 
     #[test]
-    fn order_to_live_runs_from_our_request_to_bullet_opening_the_order() {
+    fn order_to_live_runs_from_our_decision_to_bullet_opening_the_order() {
         let mut t = Telemetry::new();
-        let started = Instant::now();
-        sent(&mut t, 7, started);
-        opened(&mut t, 7, unix_us() + 8_000);
+        let now = unix_us();
+        decided(&mut t, 7, now - 1_000, Instant::now());
+        // Opened 8 ms after we decided; its confirmation reached us 2 ms later.
+        opened(&mut t, 7, now + 8_000, now + 10_000);
         let p50 = p50_us(&t, ORDER_TO_LIVE);
         // Rebuilding a wall-clock time from an `Instant` can be a microsecond off.
         assert!((7_990..9_000).contains(&p50), "{p50}");
     }
 
     #[test]
-    fn the_echo_can_arrive_before_the_http_response() {
+    fn an_order_opened_after_we_heard_about_it_means_our_clock_is_behind() {
         let mut t = Telemetry::new();
-        let started = Instant::now();
-        opened(&mut t, 9, unix_us() + 8_000);
-        sent(&mut t, 9, started);
-        let p50 = p50_us(&t, ORDER_TO_LIVE);
-        // Rebuilding a wall-clock time from an `Instant` can be a microsecond off.
-        assert!((7_990..9_000).contains(&p50), "{p50}");
+        let now = unix_us();
+        decided(&mut t, 8, now - 1_000, Instant::now());
+        // Bullet says it opened the order 500 ms after we heard it had: impossible
+        // unless our clock is 500 ms behind Bullet's.
+        opened(&mut t, 8, now + 510_000, now + 10_000);
+        assert!(!t.hops.contains_key(ORDER_TO_LIVE), "not a latency");
+        assert!(t.table().contains("your clock is behind"), "{}", t.table());
+    }
+
+    #[test]
+    fn an_order_opened_before_we_decided_means_our_clock_is_ahead() {
+        let mut t = Telemetry::new();
+        let now = unix_us();
+        decided(&mut t, 9, now - 600_000, Instant::now());
+        opened(&mut t, 9, now - 300_000, now - 299_000);
+        assert!(!t.hops.contains_key(ORDER_TO_LIVE), "not a latency");
+        assert!(t.table().contains("your clock is ahead"), "{}", t.table());
+    }
+
+    #[test]
+    fn exchanges_disagreeing_is_not_blamed_on_our_clock() {
+        let mut t = Telemetry::new();
+        let now = unix_us();
+        // Bullet's stamp is earlier than Binance's: their clocks disagree.
+        decided(&mut t, 10, now + 50_000, Instant::now());
+        opened(&mut t, 10, now + 5_000, now + 6_000);
+        assert!(!t.hops.contains_key(END_TO_END));
+        let table = t.table();
+        assert!(
+            table.contains("Binance's and Bullet's clocks disagree"),
+            "{table}"
+        );
+        assert!(!table.contains("your clock is behind"), "{table}");
     }
 
     #[test]

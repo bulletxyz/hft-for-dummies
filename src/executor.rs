@@ -83,7 +83,7 @@ impl Executor for LiveExecutor {
 
         if !cancels.is_empty()
             && let Err(e) = self
-                .timed(SentKind::Cancel, &cancels, self.bullet.cancel(&cancels))
+                .timed(SentKind::Cancel, self.bullet.cancel(&cancels))
                 .await
         {
             tracing::warn!("cancel failed: {e}");
@@ -97,7 +97,7 @@ impl Executor for LiveExecutor {
         let place_ids: Vec<u64> = places.iter().map(|o| o.client_id).collect();
         if !places.is_empty()
             && let Err(e) = self
-                .timed(SentKind::Place, &place_ids, self.bullet.place(&places))
+                .timed(SentKind::Place, self.bullet.place(&places))
                 .await
         {
             tracing::warn!("placing orders failed (often: not enough margin): {e}");
@@ -119,7 +119,6 @@ impl LiveExecutor {
     async fn timed<T>(
         &self,
         kind: SentKind,
-        client_ids: &[u64],
         request: impl Future<Output = anyhow::Result<T>>,
     ) -> anyhow::Result<T> {
         let started = Instant::now();
@@ -127,7 +126,6 @@ impl LiveExecutor {
         if result.is_ok() {
             self.send(Event::Sent {
                 kind,
-                client_ids: client_ids.to_vec(),
                 started,
                 finished: Instant::now(),
             });
