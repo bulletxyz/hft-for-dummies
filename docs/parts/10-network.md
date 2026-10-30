@@ -84,20 +84,21 @@ market makers. Point the bot at it with `api_url` in `bot.toml`. The server's
 Elastic IP (`terraform output ip`) is what gets whitelisted.
 
 We got whitelisted and ran the benchmark four times, 10 minutes each,
-alternating the two routes so both saw the same market:
+alternating the two routes so both saw the same market. Cloudflare served us
+from Tokyo both times, its best case:
 
-| Route | Bullet book → us | order accepted | order live on book |
+| Route (two runs each) | Bullet book → us p50 | order-to-live p50 / p99 | end-to-end p50 / p99 |
 |---|---|---|---|
-| direct | 2.6-2.8 ms | 15-18 ms | 14-15 ms |
-| Cloudflare, served in Tokyo | 7.2 ms | 20 ms | 26 ms |
-| Cloudflare, served further away | 78 ms | 185 ms | 197 ms |
+| direct | 1.5 ms | 4.0-4.3 / 81-83 ms | 5.9-6.7 / 92-93 ms |
+| Cloudflare, served in Tokyo | 3.5-4.5 ms | 8.2-9.9 / 27-59 ms | 10.6-12.0 / 50-61 ms |
 
-(p50s. The last row is the fourth run: halfway through the experiment,
-Cloudflare moved us again. Straight afterwards it was serving us from
-Singapore.) On a good day the direct route saves a few milliseconds; its real
-value is that the bad days go away. The slow tail (p99 around 150 ms for an
-order to be accepted) was the same on both routes: that part is inside
-Bullet.
+The direct route halves the typical trip, even against Cloudflare's best day.
+Its p99 was worse in these runs: the slow tail is Bullet processing the
+order, and ten minutes of one route against ten of the other can't tell the
+routes apart there. And on a bad day the gap is far bigger: an earlier
+evening, halfway through the same experiment, Cloudflare moved us to
+Singapore and the order took about 190 ms to go live. That's what the direct
+route really buys: the bad days go away.
 
 If you're not a whitelisted market maker, this is the honest caveat for
 everything after Part 6: your numbers to Bullet depend on where Cloudflare
@@ -111,9 +112,10 @@ serves you that day.
 - **Variance is the enemy.** A feed that's 5 ms most of the time and 100 ms
   some of the time is harder to trade on than a steady 20 ms: you can't tell
   which you're getting until your quotes are stale.
-- **Measure up to your own door.** That's why the scoreboard (Part 3) stops
-  when our order leaves: everything after it is the venue's, and can change
-  under you.
+- **Split the trip at your own door.** The scoreboard (Part 3) separates our
+  part (tick-to-trade, microseconds) from the venue's (order-to-live), so a
+  slow evening at Bullet can't be mistaken for a slow bot, or the other way
+  round.
 
 ## A hostname is a pool
 
@@ -204,13 +206,13 @@ orders in 21 ms through Cloudflare.
 
 ## Where the time goes now
 
-| Hop | p50 |
+| Step | p50 |
 |---|---|
 | Binance → us | 1.5 ms |
-| our reaction (tick → order sent) | ~0.01 ms |
-| Bullet → us (book) | 2.7 ms direct; 5-7 ms via Cloudflare Tokyo, 80-100 ms on a detour |
-| us → Bullet → order accepted | 15-18 ms direct; ~20 ms via Cloudflare Tokyo, ~200 ms on a detour |
+| queue + tick-to-trade (our code) | microseconds |
+| order-to-live (send, route, Bullet opening it) | 4 ms direct; 8-10 ms via Cloudflare Tokyo; ~190 ms on a detour |
+| **end-to-end** | **6 ms direct; 11 ms via Cloudflare Tokyo** |
 
-Our side of the loop is now microseconds, and Binance is next door. What's
-left is Bullet's own processing (most of those 15 ms) and, unless you have a
-direct route, which Cloudflare site serves you.
+Our side of the loop is microseconds, and Binance is next door. What's left
+is Bullet's own processing (most of those 4 ms) and, unless you have a direct
+route, which Cloudflare site serves you.
