@@ -173,7 +173,6 @@ impl Worker {
                         // Timed from the decision to pull, queueing included.
                         Ok(()) => self.send(Event::Sent {
                             kind: SentKind::CancelAll,
-                            client_ids: Vec::new(),
                             started: decided,
                             finished: Instant::now(),
                         }),
