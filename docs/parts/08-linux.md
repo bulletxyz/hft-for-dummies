@@ -25,7 +25,7 @@ feed_core = 1   # in bot.toml
 bot_core = 2
 ```
 
-The server is now a 4-core `c8g.xlarge`: cores 1-2 for the bot, 0 and 3 for
+The server is now a 4-core `c8g.xlarge` (about $0.20/hour): cores 1-2 for the bot, 0 and 3 for
 everything else. (Everything else includes compiling: once cores 1-2 are
 isolated, `cargo build` on the server only gets two cores and takes about
 twice as long.)
@@ -83,7 +83,8 @@ a CPU hog on every core, our noisy neighbour.
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 7 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
+on the Tokyo server, against Part 7 (milliseconds):
 
 | | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
 |---|---|---|---|---|
