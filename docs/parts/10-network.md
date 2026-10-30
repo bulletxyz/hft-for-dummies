@@ -144,6 +144,19 @@ network-optimised instance (the `n` in `c8gn`) for higher allowances.
   over the network keeps it within a microsecond (`chronyc tracking`), plenty
   for millisecond-scale measurements.
 
+## Scoreboard
+
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 9 (milliseconds):
+
+| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
+|---|---|---|---|---|
+| Part 9 | 2.1 / 145 | 1.5 | 0.01 / 45 | 17 |
+| **Part 10** | **1.9 / 58** | 1.5 | 0.01 / 2.9 | 21 |
+
+Unchanged on our side, as it should be: tick-to-trade stops at our door,
+and this part is about what lies beyond it. On this run Bullet accepted
+orders in 21 ms through Cloudflare.
+
 ## Where the time goes now
 
 | Hop | p50 |
