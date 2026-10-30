@@ -43,10 +43,16 @@ when everything is busiest. HDR histograms keep both cheaply and accurately.
 
 ## Try it
 
+You went live at the end of Part 2, so run it live (dry run works too, but no
+order reaches Bullet, so end-to-end and order-to-live stay empty):
+
 ```sh
-cargo run --release
+cargo run --release -- --live
 ```
 
+`--live` overrides `dry_run` for this run, so `bot.toml` stays as shipped and
+`git checkout part-4` later won't trip over your edits. (If you set
+`dry_run = false` in the file in Part 2, put it back: `git checkout bot.toml`.)
 Use `--release` whenever you measure. A debug build skips optimisations so it
 compiles fast, and that distorts the code-side numbers.
 
@@ -64,8 +70,7 @@ cd infra/grafana && docker compose up
 and open <http://localhost:3000>. The dashboard
 (`infra/grafana/dashboards/latency.json`) shows one trip right now, end-to-end
 over time, and each step on a log scale, so microseconds and milliseconds fit
-on one chart. In a dry run no order reaches Bullet, so end-to-end and step 5
-stay empty until you go live; the rest fills in within a minute.
+on one chart, and fills in within a minute.
 (Tested with Docker on a Mac. On Linux, `host.docker.internal` can't reach a
 port bound to `127.0.0.1`: run Prometheus with `network_mode: host` and scrape
 `localhost:9000` instead.)
@@ -113,8 +118,8 @@ Ctrl-C (the bot cancels its orders and prints the scoreboard):
 cargo run --release -- run bench-live.toml
 ```
 
-This trades real money: it needs the funded, delegated key from
-[Going live](../../README.md#going-live). On dry run, read our numbers instead.
+This trades real money (`bench-live.toml` is live), with the key from
+[Going live](../../README.md#going-live).
 
 A run has a few hundred orders, so per-order numbers use p95: a p99 would be
 just the one or two slowest, and moves tens of milliseconds between two

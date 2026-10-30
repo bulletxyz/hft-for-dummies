@@ -51,6 +51,15 @@ pub struct Config {
 }
 
 impl Config {
+    /// `--live` on the command line: trade for real without editing the file,
+    /// so `bot.toml` never changes and every part's checkout stays clean.
+    pub fn live(mut self, live: bool) -> Self {
+        if live {
+            self.dry_run = false;
+        }
+        self
+    }
+
     pub fn load(path: &Path) -> Result<Self> {
         let text =
             std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
@@ -100,6 +109,14 @@ mod tests {
     fn the_shipped_bot_toml_is_valid_and_safe() {
         let config = Config::load(Path::new("bot.toml")).unwrap();
         assert!(config.dry_run, "a fresh clone must never trade real money");
+    }
+
+    #[test]
+    fn live_from_the_command_line_only_turns_dry_run_off() {
+        let config = Config::load(Path::new("bot.toml")).unwrap();
+        assert!(config.live(false).dry_run, "no flag: the file decides");
+        let config = Config::load(Path::new("bot.toml")).unwrap();
+        assert!(!config.live(true).dry_run, "--live trades for real");
     }
 
     #[test]

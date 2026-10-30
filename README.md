@@ -72,8 +72,8 @@ run the bot"*; `AGENTS.md` has its instructions.
    [Delegate Accounts](https://app.bullet.xyz/delegate-accounts) with the
    key filled in: click **Confirm Delegation**. A delegate can trade but
    never withdraw.
-3. **Set `dry_run = false`** in `bot.toml` and `cargo run`. Two orders appear
-   either side of the price, marked ▸ in the app's order book (set its
+3. **Run it live:** `cargo run -- --live`. Two orders appear either side of
+   the price, marked ▸ in the app's order book (set its
    granularity to 0.1 or finer). Ctrl-C cancels them.
 
 Limits in `bot.toml`: at most 0.1 SOL held, stops after a $2 loss. Stopping

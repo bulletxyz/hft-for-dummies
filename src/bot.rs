@@ -24,8 +24,8 @@ use crate::market_maker::MarketMaker;
 use crate::telemetry::{self, Telemetry};
 use crate::{binance, bullet};
 
-pub async fn run(config_path: &Path) -> Result<()> {
-    let config = Config::load(config_path)?;
+pub async fn run(config_path: &Path, live: bool) -> Result<()> {
+    let config = Config::load(config_path)?.live(live);
     if config.dry_run {
         tracing::info!(
             "DRY RUN: watching {} and logging the quotes we would place. No orders are sent.",
