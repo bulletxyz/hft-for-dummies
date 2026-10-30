@@ -83,6 +83,26 @@ endpoint, a cross-connect. Bullet has one: a direct endpoint for whitelisted
 market makers. Point the bot at it with `api_url` in `bot.toml`. The server's
 Elastic IP (`terraform output ip`) is what gets whitelisted.
 
+We got whitelisted and ran the benchmark four times, 10 minutes each,
+alternating the two routes so both saw the same market:
+
+| Route | Bullet book → us | order accepted | order live on book |
+|---|---|---|---|
+| direct | 2.6-2.8 ms | 15-18 ms | 14-15 ms |
+| Cloudflare, served in Tokyo | 7.2 ms | 20 ms | 26 ms |
+| Cloudflare, served further away | 78 ms | 185 ms | 197 ms |
+
+(p50s. The last row is the fourth run: halfway through the experiment,
+Cloudflare moved us again. Straight afterwards it was serving us from
+Singapore.) On a good day the direct route saves a few milliseconds; its real
+value is that the bad days go away. The slow tail (p99 around 150 ms for an
+order to be accepted) was the same on both routes: that part is inside
+Bullet.
+
+If you're not a whitelisted market maker, this is the honest caveat for
+everything after Part 6: your numbers to Bullet depend on where Cloudflare
+serves you that day.
+
 **Lessons.**
 
 - **Look at the whole path, not one number.** `mtr` said 1.6 ms; the real
@@ -165,9 +185,9 @@ orders in 21 ms through Cloudflare.
 |---|---|
 | Binance → us | 1.5 ms |
 | our reaction (tick → order sent) | ~0.01 ms |
-| Bullet → us (book) | 4.6 ms via Tokyo, ~100 ms via Dallas |
-| us → Bullet → order accepted | ~20 ms via Tokyo, ~220 ms via Dallas |
+| Bullet → us (book) | 2.7 ms direct; 5-7 ms via Cloudflare Tokyo, 80-100 ms on a detour |
+| us → Bullet → order accepted | 15-18 ms direct; ~20 ms via Cloudflare Tokyo, ~200 ms on a detour |
 
 Our side of the loop is now microseconds, and Binance is next door. What's
-left depends on which Cloudflare site Bullet's traffic is handled in, which
-only the venue can pin down.
+left is Bullet's own processing (most of those 15 ms) and, unless you have a
+direct route, which Cloudflare site serves you.
