@@ -66,16 +66,19 @@ in-flight requests, and the bot's final position matched the exchange's.
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
-on the Tokyo server, against Part 10 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), live on the Tokyo
+server over Bullet's direct endpoint, against Part 10:
 
-| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
-|---|---|---|---|---|
-| Part 10 | 1.9 / 58 | 1.5 | 0.01 / 2.9 | 21 |
-| **Part 11** | **1.9 / 61** | 1.6 | 0.01 / 3.0 | 21 |
+| | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
+|---|---|---|---|---|---|
+| Part 10 | 6.3 / 27 ms | 1.5 ms | 1 µs | 4.7 / 23 ms | 0.01 / 21 ms |
+| **Part 11** | **5.4 / 47 ms** | 1.5 ms | 1 µs | 3.4 / 34 ms | 0.01 / 21 ms |
 
 Unchanged: the pull lane matters when cancelling under pressure, not on the
 normal requote path.
+
+Both rows are medians of three 5-minute runs taken in rotation, so they
+saw the same conditions at Bullet.
 
 ## Where we ended up
 
