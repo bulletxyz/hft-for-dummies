@@ -15,7 +15,13 @@ a server in Tokyo:
 | | Binance round trip (p50) |
 |---|---|
 | laptop | 81.5 ms |
-| Tokyo server | 1.8 ms |
+| Tokyo server (best zone, below) | 0.5 ms |
+
+To follow along you need an AWS account, the
+[AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+logged in, and [Terraform](https://developer.hashicorp.com/terraform/install).
+The server costs about $0.10/hour; `./infra/bot/deploy.sh destroy` when
+you're done.
 
 ## Which zone: IDs, not names
 
@@ -37,7 +43,7 @@ a few cents.
 > **Incident: the probe that measured DNS.** Our first probe reported 1.5 ms
 > to Binance. A later check from the bot's server said 0.4 ms. The
 > difference: curl's `time_connect` *includes* looking up the hostname
-> (~0.8 ms inside AWS). The probe now subtracts `time_namelookup`. *Lesson:*
+> (~1 ms inside AWS). The probe now subtracts `time_namelookup`. *Lesson:*
 > know exactly what your tool measures; when two numbers disagree, find out
 > why before trusting either.
 
@@ -97,7 +103,7 @@ One microsecond. Now the network rows in the telemetry are real.
 ```sh
 ./infra/bot/deploy.sh           # create the server, copy the code, build, start
 ./infra/bot/deploy.sh logs      # follow the bot
-./infra/bot/deploy.sh bench     # the Part 3 benchmark, live, on the server
+./infra/bot/deploy.sh bench     # the Part 3 benchmark, live, on the server (real money)
 ./infra/bot/deploy.sh destroy   # stop the bot (it cancels its orders) and delete the server
 ```
 
@@ -127,18 +133,22 @@ The same dry run, Tokyo server vs laptop:
 | bot: received → handled | 10 µs / 300 µs | 3 / 6 µs |
 | bot: decide | 1 / 20 µs | 1 / 3 µs |
 
-Binance is now 1.5 ms away. Two surprises:
+Binance's prices now reach us 1.5 ms after Binance stamps them. The wire is
+only a quarter of a millisecond of that (half the 0.5 ms round trip); the
+rest is inside Binance, between stamping an event and sending it. Two
+surprises:
 
 - **Bullet's feed was ~100 ms from Tokyo in this run** (4.6 ms in another,
   hours later). Placement can't fix what's on the exchange's side of the
-  wire; Part 10 tracks down where those milliseconds go.
+  wire; Part 10 finds out why.
 - **The server is far steadier than the laptop.** Queueing p99 dropped from
   300 µs to 6 µs: no browser, no laptop power management. That steadiness is
   what Part 8 tunes further.
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 3 (laptop) (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
+on the Tokyo server, against Part 3 (laptop) (milliseconds):
 
 | | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
 |---|---|---|---|---|
