@@ -98,7 +98,7 @@ async fn event_loop(
             if let Some(tick) = last_tick
                 && intents.iter().any(|i| matches!(i, Intent::Place(_)))
             {
-                telemetry.record(telemetry::TICK_TO_ORDER, decided - tick);
+                telemetry.record(telemetry::TICK_TO_TRADE, decided - tick);
             }
             telemetry.on_decision(&intents, last_binance.as_ref());
             executor.execute(intents).await;
