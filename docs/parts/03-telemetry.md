@@ -23,7 +23,7 @@ order:
 | 2 binance→us | the network from Binance | Binance's, ours |
 | 3 queue | waiting in our queue before we look at it | ours |
 | 4 tick-to-trade | our code: picking the update up → deciding on orders | ours |
-| 5 order-to-live | sending the order, the route to Bullet, and Bullet opening it | ours, Bullet's |
+| 5 order-to-live | sending the order (here: cancel the old one, wait, then place), the route to Bullet, and Bullet opening it | ours, Bullet's |
 
 Each step starts where the one before it ends. They still only roughly add up
 to end-to-end: steps 1-3 count every market message, while steps 4-5 and
@@ -79,7 +79,21 @@ and open <http://localhost:3000>. The dashboard
 - **the network steps**, binance→us and order-to-live, p50 and p99;
 - **the queue**, whose p99 shows events waiting behind a slow request.
 
-It fills in within a minute.
+It fills in within a minute. A live run of this part from a laptop:
+
+![The trip panel: end-to-end and its five steps, averaged over 5 minutes](img/03-grafana-trip.png)
+
+![End-to-end over time, the steps on a log scale, the network and the queue](img/03-grafana-charts.png)
+
+Most of the trip is order-to-live, and that's this part being naive on
+purpose. To move a quote, the bot cancels the old order, *waits for Bullet's
+reply*, then sends the new one, and from a laptop every leg crosses the
+internet to Tokyo. So order-to-live holds a whole cancel round trip (about
+130 ms) plus the new order's trip there (about 40 ms) and Bullet opening it.
+Part 4 makes every leg short; Part 6 makes it one request with no waiting.
+The queue shows the same wait from the other side: other updates pile up
+behind it (p99 in the hundreds of ms), while the update that triggers an
+order is the newest one, so it barely waits at all.
 (Tested with Docker on a Mac. On Linux, `host.docker.internal` can't reach a
 port bound to `127.0.0.1`: run Prometheus with `network_mode: host` and scrape
 `localhost:9000` instead.)
@@ -160,13 +174,22 @@ one afternoon and 407 ms behind a few hours later.
 
 The checks catch a clock that's badly off, not one that's a little off: a
 laptop clock 5 ms behind still passes, and quietly makes binance→us 5 ms too
-long. On a laptop, sync before you measure (and check with
-`sntp time.apple.com`):
+long. Check yours with `sntp time.apple.com` (the first number is how far off
+you are, in seconds).
 
-```sh
-sudo sntp -sS time.apple.com    # macOS
-sudo chronyc makestep           # Linux with chrony
-```
+> **Incident: the clock that fought back.** We stepped the laptop's clock to
+> the right time by hand (`sudo sntp -sS time.apple.com`). Fifteen minutes
+> later it was 433 ms behind again. The macOS time daemon's log showed why: it
+> fetched the correct time, decided it disagreed too much with its own
+> prediction, rejected it, and set the clock back to its prediction.
+> *Lesson:* on a laptop, don't fight the OS for the clock, and don't build a
+> measurement that needs a laptop's clock to be right. That's why the
+> headline, end-to-end, uses only the exchanges' clocks.
+
+So on a laptop, leave automatic time on (if it's wrong, toggle it off and on,
+or restart), trust end-to-end and tick-to-trade, and treat binance→us and
+order-to-live as rough. Precise one-way numbers come from the server in
+Part 4.
 
 Servers run [chrony](https://chrony-project.org/), which corrects
 continuously; on AWS it syncs to a source inside the data centre and holds
@@ -206,9 +229,10 @@ This part's benchmark, 10 minutes live from a laptop:
 | Part 3 (laptop) | 224 / 383 ms | (clock off) | 11 µs | (clock off) | 464 / 828 ms |
 
 The baseline: 224 ms from a Binance update to our order resting on Bullet,
-and our code is 11 µs of it. Most of the rest is waiting: the bot waits for
-Bullet's reply to each request (about 120 ms from a laptop) before reading the
-next event, so updates pile up in the queue.
+and our code is 11 µs of it. Binance's prices take about 40 ms to reach a
+laptop; nearly all the rest is order-to-live, because the bot cancels the old
+order, waits for Bullet's reply, and only then sends the new one, each leg a
+trip to Tokyo and back (see the dashboard above).
 
 The laptop's clock slipped half a second behind *during* the run, so the two
 numbers that use our clock are blank. End-to-end doesn't use it (only

@@ -298,7 +298,7 @@ impl Telemetry {
                 self.row(&mut out, &format!("  {hop}"), hop);
             }
         }
-        let sync = "Sync it (macOS: sudo sntp -sS time.apple.com; Linux: chrony).";
+        let sync = "Fix the clock (macOS: turn automatic time off and on; Linux: chrony), or trust end-to-end, which doesn't use it.";
         for (skew, what) in [
             (&self.our_clock_behind, "your clock is behind an exchange's"),
             (&self.our_clock_ahead, "your clock is ahead of Bullet's"),
