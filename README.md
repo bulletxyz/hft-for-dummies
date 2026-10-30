@@ -137,6 +137,7 @@ Tokyo server over Bullet's direct endpoint. It splits one trip around the loop:
 | 7 | 6.0 / 162 ms | 1.5 ms | 2 µs | 3.9 / 161 ms | 0.01 / 13 ms |
 | 8 | 5.8 / 63 ms | 1.5 ms | 1 µs | 3.9 / 59 ms | 0.01 / 19 ms |
 | 9 | 5.5 / 53 ms | 1.4 ms | 1 µs | 3.7 / 47 ms | 0.01 / 16 ms |
+| 10 | 6.3 / 27 ms | 1.5 ms | 1 µs | 4.7 / 23 ms | 0.01 / 21 ms |
 
 Every server run used the same machine, Part 8's 4-core c8g.xlarge (Part 4
 sets up a c8g.large). Parts 4 and 5 are single 10-minute runs; Parts 4-7 ran with threads unpinned (pinning is Part 8).

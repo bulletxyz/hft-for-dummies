@@ -192,17 +192,20 @@ network-optimised instance (the `n` in `c8gn`) for higher allowances.
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
-on the Tokyo server, against Part 9 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), live on the Tokyo
+server over Bullet's direct endpoint, against Part 9:
 
-| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
-|---|---|---|---|---|
-| Part 9 | 2.1 / 145 | 1.5 | 0.01 / 45 | 17 |
-| **Part 10** | **1.9 / 58** | 1.5 | 0.01 / 2.9 | 21 |
+| | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
+|---|---|---|---|---|---|
+| Part 9 | 5.5 / 53 ms | 1.4 ms | 1 µs | 3.7 / 47 ms | 0.01 / 16 ms |
+| **Part 10** | **6.3 / 27 ms** | 1.5 ms | 1 µs | 4.7 / 23 ms | 0.01 / 21 ms |
 
-Unchanged on our side, as it should be: tick-to-trade stops at our door,
-and this part is about what lies beyond it. On this run Bullet accepted
-orders in 21 ms through Cloudflare.
+Unchanged here, because every part's benchmark already runs over Bullet's
+direct endpoint. This part's gain is in the comparison above: about 6 ms
+direct against 11 ms through Cloudflare on its best day.
+
+Both rows are medians of three 5-minute runs taken in rotation, so they
+saw the same conditions at Bullet.
 
 ## Where the time goes now
 
