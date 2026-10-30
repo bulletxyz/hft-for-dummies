@@ -248,19 +248,28 @@ impl Telemetry {
         }
     }
 
+    /// One row; a hop with no samples yet shows dashes, so the trip's shape
+    /// is always visible.
     fn row(&self, out: &mut String, label: &str, hop: &str) {
-        if let Some(h) = self.hops.get(hop) {
-            let ms = |us: u64| us as f64 / 1000.0;
-            let _ = writeln!(
+        let _ = match self.hops.get(hop) {
+            Some(h) => {
+                let ms = |us: u64| us as f64 / 1000.0;
+                writeln!(
+                    out,
+                    "  {:<46} {:>7} {:>9.3} {:>9.3} {:>9.3}",
+                    label,
+                    h.len(),
+                    ms(h.value_at_quantile(0.5)),
+                    ms(h.value_at_quantile(0.99)),
+                    ms(h.max())
+                )
+            }
+            None => writeln!(
                 out,
-                "  {:<46} {:>7} {:>9.3} {:>9.3} {:>9.3}",
-                label,
-                h.len(),
-                ms(h.value_at_quantile(0.5)),
-                ms(h.value_at_quantile(0.99)),
-                ms(h.max())
-            );
-        }
+                "  {label:<46} {:>7} {:>9} {:>9} {:>9}",
+                0, "-", "-", "-"
+            ),
+        };
     }
 
     /// p50 / p99 / max per hop, in milliseconds.
@@ -272,6 +281,13 @@ impl Telemetry {
         self.row(&mut out, END_TO_END, END_TO_END);
         for (i, hop) in TRIP.iter().enumerate() {
             self.row(&mut out, &format!("  {} {hop}", i + 1), hop);
+        }
+        if !self.hops.contains_key(END_TO_END) {
+            let _ = writeln!(
+                out,
+                "  (no orders have reached Bullet yet: end-to-end and order-to-live start with \
+                 the first live order)"
+            );
         }
         let mut others = self
             .hops
@@ -489,5 +505,19 @@ mod tests {
             at(SUBMIT_PLACE),
         ];
         assert!(order.windows(2).all(|w| w[0] < w[1]), "{table}");
+    }
+
+    #[test]
+    fn the_whole_trip_shows_before_any_order_reaches_bullet() {
+        let mut t = Telemetry::new();
+        t.record_us(BINANCE_NETWORK, 40_000);
+        let table = t.table();
+        for hop in [END_TO_END, TICK_TO_TRADE, ORDER_TO_LIVE] {
+            assert!(table.contains(hop), "{hop} missing:\n{table}");
+        }
+        assert!(
+            table.contains("no orders have reached Bullet yet"),
+            "{table}"
+        );
     }
 }
