@@ -40,7 +40,8 @@ flowchart LR
 ```
 
 Binance moves, we reprice, requote on Bullet, and fills feed back into
-inventory. That loop is *tick to trade*; the series makes it fast.
+inventory. The series makes that loop fast: from a Binance trade to our new
+order resting on Bullet.
 
 ## Run it
 
@@ -118,13 +119,18 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 ## Scoreboard
 
 The [standard benchmark](docs/parts/03-telemetry.md#the-scoreboard) at the end
-of each part: 10 minutes quoting live with `bench-live.toml`. Part 3 ran on a
-laptop, the rest on the Tokyo server. Milliseconds; p50 is the trend, p99
-is noisy from run to run.
+of each part: 10 minutes quoting live with `bench-live.toml`, Part 3 on a
+laptop and the rest on the Tokyo server. It splits one trip around the loop:
 
-| Part | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
-|---|---|---|---|---|
-| 3 | 180 / 586 | 55 | 829 / 2,167 | 119 |
+```text
+ Binance trade ──► reaches us ──► waits in our queue ──► we decide ──► request to Bullet ──► our order is open
+                   binance→us         queue             tick-to-trade    order-to-live
+ └─────────────────────────────────────── end-to-end ───────────────────────────────────────┘
+```
+
+| Part | end-to-end p50 / p95 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p95 | queue p99 / max |
+|---|---|---|---|---|---|
+| 3 | 224 / 383 ms | (clock off) | 11 µs | (clock off) | 464 / 828 ms |
 
 ## Incidents
 

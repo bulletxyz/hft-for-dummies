@@ -152,16 +152,21 @@ Four lessons:
 
 ## Scoreboard
 
-This part's benchmark, 10 minutes live from a laptop (milliseconds):
+This part's benchmark, 10 minutes live from a laptop:
 
-| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
-|---|---|---|---|---|
-| Part 3 (laptop) | 180 / 586 | 55 | 829 / 2,167 | 119 |
+| | end-to-end p50 / p95 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p95 | queue p99 / max |
+|---|---|---|---|---|---|
+| Part 3 (laptop) | 224 / 383 ms | (clock off) | 11 µs | (clock off) | 464 / 828 ms |
 
-The baseline, from a laptop: 180 ms from Binance's trade to our order
-leaving. Binance's prices take 55 ms to reach us; most of the rest is ticks
-waiting in the queue while the bot waits ~120 ms for Bullet to accept its
-last order. Part 4 attacks the distance, Part 6 the waiting.
+The baseline: 224 ms from a Binance trade to our order resting on Bullet,
+and our code is 11 µs of it. Most of the rest is waiting: the bot waits for
+Bullet's reply to each order (about 120 ms from a laptop) before reading the
+next event, so ticks pile up in the queue. Part 4 attacks the distance, Part 6
+the waiting.
+
+The laptop's clock slipped half a second behind *during* the run, so the two
+numbers that use our clock are blank. End-to-end doesn't use it (only
+Binance's and Bullet's), which is why it's the headline.
 
 ## What's next
 
