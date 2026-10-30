@@ -87,6 +87,18 @@ Two lessons:
    budget comfortably above your normal peak and well below the exchange's
    cap. The default of 5/s is both.
 
+## Scoreboard
+
+The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live on the Tokyo server, against Part 6 (milliseconds):
+
+| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
+|---|---|---|---|---|
+| Part 6 | 1.7 / 51 | 1.5 | 0.01 / 0.03 | 17 |
+| **Part 7** | **1.8 / 79** | 1.5 | 0.01 / 28 | 19 |
+
+Same as Part 6, within noise. The budget only bites in bursts, and this run
+had none.
+
 ## What's next
 
 The bot is now correct and polite. The next parts make it steady: Part 8
