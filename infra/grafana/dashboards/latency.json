@@ -1,0 +1,399 @@
+{
+  "uid": "hft-latency",
+  "title": "HFT for dummies: latency",
+  "timezone": "utc",
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "schemaVersion": 41,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "bargauge",
+      "title": "One trip, on average over the last 5 minutes (the steps add up to end-to-end)",
+      "description": "The average trip of the orders placed in the last 5 minutes. For each order, the five steps add up to its end-to-end exactly, so the step bars sum to the top one. Binance stamps whole milliseconds, so step 1 often reads 0. Percentiles are in the charts below.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(hft_trip_seconds_sum{step=\"END-TO-END: Binance update → our order open\"}[5m]) / rate(hft_trip_seconds_count{step=\"END-TO-END: Binance update → our order open\"}[5m]) >= 0",
+          "legendFormat": "end-to-end",
+          "refId": "e2e"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(hft_trip_seconds_sum{step=\"inside Binance (match → sent)\"}[5m]) / rate(hft_trip_seconds_count{step=\"inside Binance (match → sent)\"}[5m]) >= 0",
+          "legendFormat": "1 Binance",
+          "refId": "1 Binance"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(hft_trip_seconds_sum{step=\"binance→us (network)\"}[5m]) / rate(hft_trip_seconds_count{step=\"binance→us (network)\"}[5m]) >= 0",
+          "legendFormat": "2 binance→us",
+          "refId": "2 binance→us"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(hft_trip_seconds_sum{step=\"queue (received → handled)\"}[5m]) / rate(hft_trip_seconds_count{step=\"queue (received → handled)\"}[5m]) >= 0",
+          "legendFormat": "3 queue",
+          "refId": "3 queue"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(hft_trip_seconds_sum{step=\"tick-to-trade (our code)\"}[5m]) / rate(hft_trip_seconds_count{step=\"tick-to-trade (our code)\"}[5m]) >= 0",
+          "legendFormat": "4 tick-to-trade",
+          "refId": "4 tick-to-tr"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(hft_trip_seconds_sum{step=\"order-to-live (send + route + Bullet)\"}[5m]) / rate(hft_trip_seconds_count{step=\"order-to-live (send + route + Bullet)\"}[5m]) >= 0",
+          "legendFormat": "5 order-to-live",
+          "refId": "5 order-to-l"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top"
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "End-to-end: Binance update → our order open on Bullet",
+      "description": "The headline over time. p50 is the typical order; p99 the slow 1%, when you get picked off. Gaps are minutes with no timed order. Percentiles are over the last 5 minutes.",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 14
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.5\"} > 0",
+          "legendFormat": "p50",
+          "refId": "p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.99\"} > 0",
+          "legendFormat": "p99",
+          "refId": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "The steps over time (p50, log scale)",
+      "description": "Each step's p50 on a log scale, so microseconds (our code, bottom) and milliseconds (the network, top) fit on one chart. Percentiles are over the last 5 minutes.",
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 14
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"inside Binance (match → sent)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "1 inside Binance (match → sent)",
+          "refId": "1 inside Binance (ma"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"binance→us (network)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "2 binance→us (network)",
+          "refId": "2 binance→us (networ"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "3 queue (received → handled)",
+          "refId": "3 queue (received → "
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "4 tick-to-trade (our code)",
+          "refId": "4 tick-to-trade (our"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"order-to-live (send + route + Bullet)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "5 order-to-live (send + route + Bullet)",
+          "refId": "5 order-to-live (rou"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "scaleDistribution": {
+              "type": "log",
+              "log": 10
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Network: binance→us and order-to-live",
+      "description": "The two big steps of the trip: Binance's prices reaching us, and our order reaching Bullet and opening. Part 4 shortens both; Part 10 looks at the route to Bullet. Percentiles are over the last 5 minutes.",
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"binance→us (network)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "binance→us p50",
+          "refId": "binance→us_p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"binance→us (network)\",quantile=\"0.99\"} > 0",
+          "legendFormat": "binance→us p99",
+          "refId": "binance→us_p99"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"order-to-live (send + route + Bullet)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "order-to-live p50",
+          "refId": "order-to-live_p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"order-to-live (send + route + Bullet)\",quantile=\"0.99\"} > 0",
+          "legendFormat": "order-to-live p99",
+          "refId": "order-to-live_p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "scaleDistribution": {
+              "type": "log",
+              "log": 10
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Queue: waiting before we look at an event",
+      "description": "Usually near zero (p50), but the p99 shows events waiting behind a slow order request: the cost of waiting, which Part 6 removes. Percentiles are over the last 5 minutes.",
+      "gridPos": {
+        "x": 12,
+        "y": 26,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.5\"} > 0",
+          "legendFormat": "p50",
+          "refId": "p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.99\"} > 0",
+          "legendFormat": "p99",
+          "refId": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    }
+  ]
+}

@@ -40,7 +40,7 @@ flowchart LR
 ```
 
 Binance moves, we reprice, requote on Bullet, and fills feed back into
-inventory. The series makes that loop fast: from a Binance trade to our new
+inventory. The series makes that loop fast: from a Binance update to our new
 order resting on Bullet.
 
 ## Run it
@@ -72,8 +72,8 @@ run the bot"*; `AGENTS.md` has its instructions.
    [Delegate Accounts](https://app.bullet.xyz/delegate-accounts) with the
    key filled in: click **Confirm Delegation**. A delegate can trade but
    never withdraw.
-3. **Set `dry_run = false`** in `bot.toml` and `cargo run`. Two orders appear
-   either side of the price, marked ▸ in the app's order book (set its
+3. **Run it live:** `cargo run -- --live`. Two orders appear either side of
+   the price, marked ▸ in the app's order book (set its
    granularity to 0.1 or finer). Ctrl-C cancels them.
 
 Limits in `bot.toml`: at most 0.1 SOL held, stops after a $2 loss. Stopping
@@ -123,12 +123,12 @@ of each part: 10 minutes quoting live with `bench-live.toml`, Part 3 on a
 laptop and the rest on the Tokyo server. It splits one trip around the loop:
 
 ```text
- Binance trade ──► reaches us ──► waits in our queue ──► we decide ──► request to Bullet ──► our order is open
+ Binance update ──► reaches us ──► waits in our queue ──► we decide ──► order to Bullet ──► our order is open
                    binance→us         queue             tick-to-trade    order-to-live
  └─────────────────────────────────────── end-to-end ───────────────────────────────────────┘
 ```
 
-| Part | end-to-end p50 / p95 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p95 | queue p99 / max |
+| Part | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
 |---|---|---|---|---|---|
 | 3 | 224 / 383 ms | (clock off) | 11 µs | (clock off) | 464 / 828 ms |
 

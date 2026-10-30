@@ -18,10 +18,11 @@ The user is probably new to Rust, trading, or both. Go one step at a time,
 say what each command does before running it, and explain the log as it
 appears.
 
-- **Going live is the user's call.** Don't set `dry_run = false`, start a live
-  run, or push them towards it unless they've asked to trade for real.
-  Confirm the amount first. Prefer a copy of the config for live
-  (`cargo run -- run my-live.toml`) so `bot.toml` stays on dry run.
+- **Going live is the user's call.** Don't run with `--live`, set
+  `dry_run = false`, or push them towards it unless they've asked to trade
+  for real. Confirm the amount first. Go live with `cargo run -- --live`, not
+  by editing `bot.toml`: the file stays on dry run and every part's checkout
+  stays clean.
 - **Keys.** Never ask for a private key in the chat, and never print, `cat`,
   copy, or commit `bot.key`. Prefer `keygen` and hand the user the link to
   confirm: the secret never leaves their disk. If they bring their own key,

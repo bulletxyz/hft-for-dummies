@@ -25,3 +25,6 @@ max_loss_usd = "2"            # stop quoting for this run after losing $2 (fees 
 reference_stale_secs = 5      # no Binance price for 5s: pull quotes
 book_stale_secs = 10          # no Bullet book update for 10s: pull quotes
 basis_halflife_secs = 300     # average the Binance-Bullet gap over ~5 minutes
+
+# --- Watching it ---
+metrics_port = 9000           # latency metrics for Grafana (infra/grafana); remove to turn off

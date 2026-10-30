@@ -24,8 +24,8 @@ use crate::market_maker::MarketMaker;
 use crate::telemetry::{self, Telemetry};
 use crate::{binance, bullet};
 
-pub async fn run(config_path: &Path) -> Result<()> {
-    let config = Config::load(config_path)?;
+pub async fn run(config_path: &Path, live: bool) -> Result<()> {
+    let config = Config::load(config_path)?.live(live);
     if config.dry_run {
         tracing::info!(
             "DRY RUN: watching {} and logging the quotes we would place. No orders are sent.",
@@ -33,6 +33,13 @@ pub async fn run(config_path: &Path) -> Result<()> {
         );
     } else {
         tracing::warn!("LIVE: trading {} with real money", config.symbol);
+    }
+
+    // Metrics are a window, not a dependency: if the port is taken, run without.
+    if let Some(port) = config.metrics_port
+        && let Err(e) = telemetry::serve_metrics(port)
+    {
+        tracing::warn!("no metrics for Grafana (port {port}): {e}");
     }
 
     let (bus, events) = mpsc::unbounded_channel();
@@ -58,10 +65,6 @@ async fn event_loop(
     mut events: mpsc::UnboundedReceiver<Event>,
 ) -> Result<()> {
     let mut telemetry = Telemetry::new();
-    // When the newest market data we've acted on arrived: the "tick" in tick-to-trade.
-    let mut last_tick: Option<Instant> = None;
-    // The newest Binance price: what moves our quotes.
-    let mut last_binance: Option<Stamp> = None;
 
     executor.execute(market_maker.start()).await;
     let result = loop {
@@ -71,15 +74,17 @@ async fn event_loop(
         match &event {
             Event::Shutdown => break Ok(()),
             Event::Disconnected(why) => break Err(anyhow::anyhow!("Bullet disconnected: {why}")),
-            Event::Reference { stamp, .. } => {
-                last_tick = Some(stamp.received_at);
-                last_binance = Some(*stamp);
-            }
-            Event::Book(_, stamp) => last_tick = Some(stamp.received_at),
             Event::Tick => telemetry.maybe_report(Instant::now()),
             _ => {}
         }
         let now = Instant::now();
+        // A Binance update is the "tick" we time our reaction and the whole
+        // trip from. A requote caused by anything else (a fill, Bullet's book)
+        // has no Binance update behind it, so it isn't timed.
+        let tick: Option<Stamp> = match &event {
+            Event::Reference { stamp, .. } => Some(*stamp),
+            _ => None,
+        };
         telemetry.on_event(&event, now);
         executor.on_event(&event);
         let intents = market_maker.on_event(&event, now);
@@ -95,12 +100,12 @@ async fn event_loop(
             let decided = Instant::now();
             decide += decided - started;
             telemetry.record(telemetry::DECIDE, decide);
-            if let Some(tick) = last_tick
-                && intents.iter().any(|i| matches!(i, Intent::Place(_)))
-            {
-                telemetry.record(telemetry::TICK_TO_TRADE, decided - tick);
+            if tick.is_some() && intents.iter().any(|i| matches!(i, Intent::Place(_))) {
+                // From picking the update up, so time waiting in the queue
+                // (step 3) isn't counted twice.
+                telemetry.record(telemetry::TICK_TO_TRADE, decided - now);
             }
-            telemetry.on_decision(&intents, last_binance.as_ref());
+            telemetry.on_decision(&intents, tick.as_ref(), now, decided);
             executor.execute(intents).await;
         }
     };

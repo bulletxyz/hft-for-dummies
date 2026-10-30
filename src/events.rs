@@ -47,10 +47,9 @@ pub enum Event {
     OrderGone { client_id: u64 },
     /// The exchange confirmed one of our orders is resting on the book.
     OrderLive { client_id: u64, stamp: Stamp },
-    /// The executor sent orders and the exchange answered (for telemetry).
+    /// The executor sent a request and the exchange answered (for telemetry).
     Sent {
         kind: SentKind,
-        client_ids: Vec<u64>,
         started: Instant,
         finished: Instant,
     },

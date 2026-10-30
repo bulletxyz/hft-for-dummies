@@ -28,6 +28,9 @@ use clap::{Parser, Subcommand};
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
+    /// Trade with real money, whatever `dry_run` says in the config.
+    #[arg(long, global = true)]
+    live: bool,
 }
 
 #[derive(Subcommand)]
@@ -54,10 +57,11 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    match Cli::parse().command.unwrap_or(Command::Run {
+    let cli = Cli::parse();
+    match cli.command.unwrap_or(Command::Run {
         config: "bot.toml".into(),
     }) {
-        Command::Run { config } => bot::run(&config).await,
+        Command::Run { config } => bot::run(&config, cli.live).await,
         Command::Keygen { path, network } => keygen(&path, &network),
     }
 }

@@ -43,9 +43,23 @@ pub struct Config {
     pub book_stale_secs: u64,
     /// How slowly the Binance→Bullet price gap (the "basis") is averaged.
     pub basis_halflife_secs: u64,
+
+    /// Serve latency metrics to Prometheus on this local port, for Grafana
+    /// (`infra/grafana`). Off when unset.
+    #[serde(default)]
+    pub metrics_port: Option<u16>,
 }
 
 impl Config {
+    /// `--live` on the command line: trade for real without editing the file,
+    /// so `bot.toml` never changes and every part's checkout stays clean.
+    pub fn live(mut self, live: bool) -> Self {
+        if live {
+            self.dry_run = false;
+        }
+        self
+    }
+
     pub fn load(path: &Path) -> Result<Self> {
         let text =
             std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
@@ -98,8 +112,24 @@ mod tests {
     }
 
     #[test]
+    fn live_from_the_command_line_only_turns_dry_run_off() {
+        let config = Config::load(Path::new("bot.toml")).unwrap();
+        assert!(config.live(false).dry_run, "no flag: the file decides");
+        let config = Config::load(Path::new("bot.toml")).unwrap();
+        assert!(!config.live(true).dry_run, "--live trades for real");
+    }
+
+    #[test]
     fn the_benchmark_config_is_valid() {
         assert!(!Config::load(Path::new("bench-live.toml")).unwrap().dry_run);
+    }
+
+    #[test]
+    fn metrics_are_on_in_the_shipped_configs() {
+        for path in ["bot.toml", "bench-live.toml"] {
+            let config = Config::load(Path::new(path)).unwrap();
+            assert_eq!(config.metrics_port, Some(9000), "{path}");
+        }
     }
 
     #[test]
