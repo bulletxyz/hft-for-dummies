@@ -119,8 +119,8 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 ## Scoreboard
 
 The [standard benchmark](docs/parts/03-telemetry.md#the-scoreboard) at the end
-of each part: 10 minutes quoting live with `bench-live.toml`, Part 3 on a
-laptop and the rest on the Tokyo server. It splits one trip around the loop:
+of each part, live with `bench-live.toml`: Part 3 on a laptop, the rest on the
+Tokyo server over Bullet's direct endpoint. It splits one trip around the loop:
 
 ```text
  Binance update ──► reaches us ──► waits in our queue ──► we decide ──► order to Bullet ──► our order is open
@@ -131,6 +131,7 @@ laptop and the rest on the Tokyo server. It splits one trip around the loop:
 | Part | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
 |---|---|---|---|---|---|
 | 3 | 211 / 369 ms | (clock off) | 6 µs | (clock off) | 337 / 657 ms |
+| 4 | 26.8 / 110 ms | 1.6 ms | 1 µs | 24.6 / 89 ms | 93 / 350 ms |
 
 ## Incidents
 

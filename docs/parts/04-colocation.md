@@ -150,17 +150,18 @@ surprises:
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
-on the Tokyo server, against Part 3 (laptop) (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), live on the Tokyo
+server over Bullet's direct endpoint, against Part 3 on a laptop:
 
-| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
-|---|---|---|---|---|
-| Part 3 (laptop) | 180 / 586 | 55 | 829 / 2,167 | 119 |
-| **Part 4** | **35.7 / 306** | 1.6 | 340 / 565 | 27 |
+| | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
+|---|---|---|---|---|---|
+| Part 3 (laptop) | 211 / 369 ms | (clock off) | 6 µs | (clock off) | 337 / 657 ms |
+| **Part 4** | **26.8 / 110 ms** | 1.6 ms | 1 µs | 24.6 / 89 ms | 93 / 350 ms |
 
-Five times faster: Binance is now 1.6 ms away and Bullet accepts in 27 ms
-instead of 119. What's left is the queue. The bot still waits for every
-order, and ticks pile up behind it.
+211 ms to 27 ms: Binance's prices now arrive in 1.6 ms instead of about
+40, and each trip to Bullet takes a few milliseconds instead of over a
+hundred. Order-to-live is still most of what's left, because the bot still
+cancels, waits for the reply, then places. Part 6 stops that.
 
 ## What's next
 
