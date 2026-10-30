@@ -68,9 +68,10 @@ cd infra/grafana && docker compose up
 ```
 
 and open <http://localhost:3000>. The dashboard
-(`infra/grafana/dashboards/latency.json`) shows one trip right now, end-to-end
-over time, and each step on a log scale, so microseconds and milliseconds fit
-on one chart, and fills in within a minute.
+(`infra/grafana/dashboards/latency.json`) shows the average trip over the last
+minute, where the steps add up to end-to-end (averages add up; percentiles
+don't), then end-to-end's p50 and p99 over time, and each step on a log scale
+so microseconds and milliseconds fit on one chart. It fills in within a minute.
 (Tested with Docker on a Mac. On Linux, `host.docker.internal` can't reach a
 port bound to `127.0.0.1`: run Prometheus with `network_mode: host` and scrape
 `localhost:9000` instead.)
@@ -81,7 +82,7 @@ Every part from here on ends with the same benchmark, so you can see what each
 change bought. At exit the bot prints one line:
 
 ```text
-SCOREBOARD end-to-end p50 … ms p95 … ms | binance→us p50 … ms | tick-to-trade p50 … µs p95 … µs | order-to-live p50 … ms p95 … ms | queue p99 … ms max … ms | orders …
+SCOREBOARD end-to-end p50 … ms p99 … ms | binance→us p50 … ms | tick-to-trade p50 … µs p99 … µs | order-to-live p50 … ms p99 … ms | queue p99 … ms max … ms | orders …
 ```
 
 It splits one trip around the loop into its steps:
@@ -121,9 +122,9 @@ cargo run --release -- run bench-live.toml
 This trades real money (`bench-live.toml` is live), with the key from
 [Going live](../../README.md#going-live).
 
-A run has a few hundred orders, so per-order numbers use p95: a p99 would be
-just the one or two slowest, and moves tens of milliseconds between two
-identical runs.
+A run places several hundred orders, so a per-order p99 rests on its slowest
+handful: it's real, but it moves tens of milliseconds between two identical
+runs. Read p50 as the trend, and trust a p99 change only when it's large.
 
 The goal for the series: end-to-end under 20 ms p50.
 
@@ -192,7 +193,7 @@ Three lessons, with the scoreboard below:
 
 This part's benchmark, 10 minutes live from a laptop:
 
-| | end-to-end p50 / p95 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p95 | queue p99 / max |
+| | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
 |---|---|---|---|---|---|
 | Part 3 (laptop) | 224 / 383 ms | (clock off) | 11 µs | (clock off) | 464 / 828 ms |
 

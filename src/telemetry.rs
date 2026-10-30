@@ -180,9 +180,7 @@ impl Telemetry {
         }
     }
 
-    /// One line to compare runs and parts: the series' scoreboard. Per-order
-    /// numbers use p95: a run has a few hundred orders, so its p99 is just
-    /// the one or two slowest.
+    /// One line to compare runs and parts: the series' scoreboard.
     pub fn scoreboard(&self) -> String {
         let ms = |hop: &str, q: f64| {
             self.hops.get(hop).map_or("-".to_string(), |h| {
@@ -195,16 +193,16 @@ impl Telemetry {
                 .map_or("-".to_string(), |h| h.value_at_quantile(q).to_string())
         };
         format!(
-            "SCOREBOARD end-to-end p50 {} ms p95 {} ms | binance→us p50 {} ms | \
-             tick-to-trade p50 {} µs p95 {} µs | order-to-live p50 {} ms p95 {} ms | \
+            "SCOREBOARD end-to-end p50 {} ms p99 {} ms | binance→us p50 {} ms | \
+             tick-to-trade p50 {} µs p99 {} µs | order-to-live p50 {} ms p99 {} ms | \
              queue p99 {} ms max {} ms | orders {}",
             ms(END_TO_END, 0.5),
-            ms(END_TO_END, 0.95),
+            ms(END_TO_END, 0.99),
             ms(BINANCE_NETWORK, 0.5),
             us(TICK_TO_TRADE, 0.5),
-            us(TICK_TO_TRADE, 0.95),
+            us(TICK_TO_TRADE, 0.99),
             ms(ORDER_TO_LIVE, 0.5),
-            ms(ORDER_TO_LIVE, 0.95),
+            ms(ORDER_TO_LIVE, 0.99),
             ms(QUEUE, 0.99),
             ms(QUEUE, 1.0),
             self.hops.get(END_TO_END).map_or(0, Histogram::len),
@@ -337,11 +335,11 @@ impl Skew {
 }
 
 /// Serve every hop to Prometheus at `http://127.0.0.1:{port}/metrics`, as
-/// p50/p95/p99 over the last minute, for Grafana to draw (`infra/grafana`).
+/// p50 and p99 over the last minute, for Grafana to draw (`infra/grafana`).
 pub fn serve_metrics(port: u16) -> anyhow::Result<()> {
     PrometheusBuilder::new()
         .with_http_listener(([127, 0, 0, 1], port))
-        .set_quantiles(&[0.5, 0.95, 0.99])?
+        .set_quantiles(&[0.5, 0.99])?
         .install()?;
     tracing::info!("metrics for Grafana at http://127.0.0.1:{port}/metrics");
     Ok(())

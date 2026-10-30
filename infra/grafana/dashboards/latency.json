@@ -13,8 +13,8 @@
     {
       "id": 1,
       "type": "bargauge",
-      "title": "One trip, now (p50 over the last minute)",
-      "description": "End-to-end, then the steps that roughly add up to it, in loop order. Each is the p50 over the last minute; a step with no samples that minute keeps its last value.",
+      "title": "One trip, on average over the last minute",
+      "description": "Average time of each step over the last minute, on one scale. Averages add up, so the five steps sum to roughly the end-to-end bar (steps 1-3 average every message, 4-5 only the orders end-to-end times). The percentiles are in the charts below.",
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -31,7 +31,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.5\"} > 0",
+          "expr": "rate(hft_hop_seconds_sum{hop=\"END-TO-END: Binance update → our order open\"}[1m]) / rate(hft_hop_seconds_count{hop=\"END-TO-END: Binance update → our order open\"}[1m]) > 0",
           "legendFormat": "end-to-end",
           "refId": "end-to-end"
         },
@@ -40,45 +40,45 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"inside Binance (match → sent)\",quantile=\"0.5\"} > 0",
+          "expr": "rate(hft_hop_seconds_sum{hop=\"inside Binance (match → sent)\"}[1m]) / rate(hft_hop_seconds_count{hop=\"inside Binance (match → sent)\"}[1m]) > 0",
           "legendFormat": "1 Binance",
-          "refId": "1 inside Binance (ma"
+          "refId": "1 Binance"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"binance→us (network)\",quantile=\"0.5\"} > 0",
+          "expr": "rate(hft_hop_seconds_sum{hop=\"binance→us (network)\"}[1m]) / rate(hft_hop_seconds_count{hop=\"binance→us (network)\"}[1m]) > 0",
           "legendFormat": "2 binance→us",
-          "refId": "2 binance→us (networ"
+          "refId": "2 binance→us"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"queue (received → handled)\",quantile=\"0.5\"} > 0",
+          "expr": "rate(hft_hop_seconds_sum{hop=\"queue (received → handled)\"}[1m]) / rate(hft_hop_seconds_count{hop=\"queue (received → handled)\"}[1m]) > 0",
           "legendFormat": "3 queue",
-          "refId": "3 queue (received → "
+          "refId": "3 queue"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"tick-to-trade (our code)\",quantile=\"0.5\"} > 0",
+          "expr": "rate(hft_hop_seconds_sum{hop=\"tick-to-trade (our code)\"}[1m]) / rate(hft_hop_seconds_count{hop=\"tick-to-trade (our code)\"}[1m]) > 0",
           "legendFormat": "4 tick-to-trade",
-          "refId": "4 tick-to-trade (our"
+          "refId": "4 tick-to-trade"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"order-to-live (send + route + Bullet)\",quantile=\"0.5\"} > 0",
+          "expr": "rate(hft_hop_seconds_sum{hop=\"order-to-live (send + route + Bullet)\"}[1m]) / rate(hft_hop_seconds_count{hop=\"order-to-live (send + route + Bullet)\"}[1m]) > 0",
           "legendFormat": "5 order-to-live",
-          "refId": "5 order-to-live (rou"
+          "refId": "5 order-to-live"
         }
       ],
       "fieldConfig": {
@@ -130,15 +130,6 @@
           "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.5\"} > 0",
           "legendFormat": "p50",
           "refId": "p50"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.95\"} > 0",
-          "legendFormat": "p95",
-          "refId": "p95"
         },
         {
           "datasource": {
