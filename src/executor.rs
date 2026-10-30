@@ -10,8 +10,11 @@
 //! For now an executor finishes each batch before the bot reads the next
 //! event, so a slow exchange slows everything down. Part 6 fixes that.
 
+use std::time::Instant;
+
 use crate::bullet::Bullet;
-use crate::events::{Bus, Event, Fill, Intent, Order, Side};
+
+use crate::events::{Bus, Event, Fill, Intent, Order, SentKind, Side};
 
 pub trait Executor {
     async fn execute(&mut self, intents: Vec<Intent>);
@@ -79,7 +82,9 @@ impl Executor for LiveExecutor {
         }
 
         if !cancels.is_empty()
-            && let Err(e) = self.bullet.cancel(&cancels).await
+            && let Err(e) = self
+                .timed(SentKind::Cancel, &cancels, self.bullet.cancel(&cancels))
+                .await
         {
             tracing::warn!("cancel failed: {e}");
             self.send(Event::CancelFailed);
@@ -89,14 +94,18 @@ impl Executor for LiveExecutor {
             });
             return;
         }
+        let place_ids: Vec<u64> = places.iter().map(|o| o.client_id).collect();
         if !places.is_empty()
-            && let Err(e) = self.bullet.place(&places).await
+            && let Err(e) = self
+                .timed(SentKind::Place, &place_ids, self.bullet.place(&places))
+                .await
         {
             tracing::warn!("placing orders failed (often: not enough margin): {e}");
             // They may have landed anyway (we just never heard back). Make sure they're gone.
-            let ids: Vec<u64> = places.iter().map(|o| o.client_id).collect();
-            let _ = self.bullet.cancel(&ids).await;
-            self.send(Event::PlaceFailed { client_ids: ids });
+            let _ = self.bullet.cancel(&place_ids).await;
+            self.send(Event::PlaceFailed {
+                client_ids: place_ids,
+            });
         }
     }
 }
@@ -104,6 +113,26 @@ impl Executor for LiveExecutor {
 impl LiveExecutor {
     fn send(&self, event: Event) {
         let _ = self.bus.send(event);
+    }
+
+    /// Run one request to the exchange and report how long it took.
+    async fn timed<T>(
+        &self,
+        kind: SentKind,
+        client_ids: &[u64],
+        request: impl Future<Output = anyhow::Result<T>>,
+    ) -> anyhow::Result<T> {
+        let started = Instant::now();
+        let result = request.await;
+        if result.is_ok() {
+            self.send(Event::Sent {
+                kind,
+                client_ids: client_ids.to_vec(),
+                started,
+                finished: Instant::now(),
+            });
+        }
+        result
     }
 }
 
@@ -150,7 +179,7 @@ impl Executor for PaperExecutor {
     /// Optimistic: a real order waits in a queue behind others at its price
     /// and might never fill. Treat dry-run profit as a best case.
     fn on_event(&mut self, event: &Event) {
-        let Event::Book(book) = event else { return };
+        let Event::Book(book, _) = event else { return };
         let (best_bid, best_ask) = (book.best_bid(), book.best_ask());
         let crossed = |o: &Order| match o.side {
             Side::Buy => best_ask.is_some_and(|ask| ask <= o.price),
@@ -180,9 +209,14 @@ mod tests {
 
     use super::*;
     use crate::book::Book;
+    use crate::events::Stamp;
 
     fn d(s: &str) -> Decimal {
         s.parse().unwrap()
+    }
+
+    fn book_event(book: Book) -> Event {
+        Event::Book(book, Stamp::at(Instant::now()))
     }
 
     #[tokio::test]
@@ -198,14 +232,14 @@ mod tests {
         paper.execute(vec![Intent::Place(bid)]).await;
 
         // Best ask 100.5: above our bid, nothing happens.
-        paper.on_event(&Event::Book(Book::from_levels(
+        paper.on_event(&book_event(Book::from_levels(
             &[(d("99"), d("1"))],
             &[(d("100.5"), d("1"))],
         )));
         assert!(events.try_recv().is_err());
 
         // Best ask drops to 100: someone would have sold to us.
-        paper.on_event(&Event::Book(Book::from_levels(
+        paper.on_event(&book_event(Book::from_levels(
             &[(d("99"), d("1"))],
             &[(d("100"), d("1"))],
         )));
@@ -218,7 +252,7 @@ mod tests {
         );
 
         // Filled orders are gone.
-        paper.on_event(&Event::Book(Book::from_levels(
+        paper.on_event(&book_event(Book::from_levels(
             &[(d("99"), d("1"))],
             &[(d("99.5"), d("1"))],
         )));
@@ -238,7 +272,7 @@ mod tests {
         paper
             .execute(vec![Intent::Place(ask), Intent::Cancel { client_id: 8 }])
             .await;
-        paper.on_event(&Event::Book(Book::from_levels(
+        paper.on_event(&book_event(Book::from_levels(
             &[(d("102"), d("1"))],
             &[(d("103"), d("1"))],
         )));

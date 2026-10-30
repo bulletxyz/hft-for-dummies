@@ -81,12 +81,10 @@ impl MarketMaker {
     /// immediate reaction; normal quoting happens in [`Self::requote`].
     pub fn on_event(&mut self, event: &Event, now: Instant) -> Vec<Intent> {
         match event {
-            Event::Reference {
-                bid,
-                ask,
-                received_at,
-            } => self.fair.on_binance(*bid, *ask, *received_at),
-            Event::Book(book) => {
+            Event::Reference { bid, ask, stamp } => {
+                self.fair.on_binance(*bid, *ask, stamp.received_at)
+            }
+            Event::Book(book, _) => {
                 if let Some(mid) = book.mid() {
                     self.fair.on_bullet_mid(
                         mid,
@@ -150,7 +148,10 @@ impl MarketMaker {
                     return vec![Intent::SyncFills];
                 }
             }
-            Event::Disconnected(_) | Event::Shutdown => {}
+            Event::Disconnected(_)
+            | Event::Shutdown
+            | Event::OrderLive { .. }
+            | Event::Sent { .. } => {}
         }
         Vec::new()
     }
@@ -342,6 +343,7 @@ mod tests {
     use std::path::Path;
 
     use super::*;
+    use crate::events::Stamp;
     use crate::fair_value::WARMUP;
 
     fn d(s: &str) -> Decimal {
@@ -367,11 +369,11 @@ mod tests {
                 &Event::Reference {
                     bid: d("99.5"),
                     ask: d("100.5"),
-                    received_at: t,
+                    stamp: Stamp::at(t),
                 },
                 t,
             );
-            mm.on_event(&Event::Book(book.clone()), t);
+            mm.on_event(&Event::Book(book.clone(), Stamp::at(t)), t);
         }
         (mm, start + WARMUP)
     }
@@ -417,7 +419,7 @@ mod tests {
             &Event::Reference {
                 bid: d("99.5"),
                 ask: d("100.5"),
-                received_at: now,
+                stamp: Stamp::at(now),
             },
             now,
         );
@@ -433,7 +435,7 @@ mod tests {
             &Event::Reference {
                 bid: d("99.52"),
                 ask: d("100.52"),
-                received_at: now,
+                stamp: Stamp::at(now),
             },
             now,
         );
@@ -443,7 +445,7 @@ mod tests {
             &Event::Reference {
                 bid: d("99.6"),
                 ask: d("100.6"),
-                received_at: now,
+                stamp: Stamp::at(now),
             },
             now,
         );
@@ -466,7 +468,7 @@ mod tests {
         let later = now + Duration::from_secs(mm.config.reference_stale_secs + 1);
         // Bullet keeps updating, Binance doesn't.
         let book = mm.book.clone().unwrap().0;
-        mm.on_event(&Event::Book(book), later);
+        mm.on_event(&Event::Book(book, Stamp::at(later)), later);
         let intents = mm.requote(later);
         assert_eq!(intents.len(), 2);
         assert!(

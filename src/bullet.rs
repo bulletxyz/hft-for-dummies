@@ -26,7 +26,7 @@ use serde::Deserialize;
 
 use crate::book::{BookEvent, BookKeeper};
 use crate::config::Config;
-use crate::events::{Bus, Event, Fill, Order, Side};
+use crate::events::{Bus, Event, Fill, Order, Side, Stamp};
 
 pub struct Bullet {
     client: Client,
@@ -102,7 +102,10 @@ pub async fn connect(config: &Config, bus: Bus) -> Result<Bullet> {
                 Some(WsEvent::Message(msg)) => match *msg {
                     ServerMessage::DepthUpdate(depth) if depth.symbol == symbol => {
                         match book.on_message(&depth) {
-                            BookEvent::Updated(book) => Some(Event::Book(book)),
+                            BookEvent::Updated(book) => Some(Event::Book(
+                                book,
+                                Stamp::now(Some(depth.event_time), Some(depth.transaction_time)),
+                            )),
                             BookEvent::Lost => Some(Event::BookLost),
                             BookEvent::None => None,
                         }
@@ -336,6 +339,16 @@ fn order_event(update: &OrderUpdateMessage, symbol: &str) -> Option<Event> {
             .common
             .client_order_id
             .map(|client_id| Event::OrderGone { client_id }),
+        OrderUpdateData::PlaceOrder(placed) if placed.common.symbol == symbol => placed
+            .common
+            .client_order_id
+            .map(|client_id| Event::OrderLive {
+                client_id,
+                stamp: Stamp::now(
+                    Some(update.event_time),
+                    Some(placed.common.transaction_time),
+                ),
+            }),
         _ => None,
     }
 }

@@ -8,9 +8,10 @@ publish = false
 [dependencies]
 anyhow = "1"
 bs58 = "0.5"
-bullet-rust-sdk = { version = "0.0.44", default-features = false }
+bullet-rust-sdk = { version = "0.0.45", default-features = false }
 clap = { version = "4", features = ["derive"] }
 futures-util = "0.3"
+hdrhistogram = { version = "7", default-features = false }
 reqwest = { version = "0.13", features = ["json"] }
 rust_decimal = { version = "1", features = ["serde-with-str"] }
 serde = { version = "1", features = ["derive"] }

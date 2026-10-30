@@ -35,16 +35,25 @@ pub enum Event {
     Reference {
         bid: Decimal,
         ask: Decimal,
-        received_at: Instant,
+        stamp: Stamp,
     },
     /// Bullet's order book changed.
-    Book(Book),
+    Book(Book, Stamp),
     /// Our copy of the Bullet book is out of sync; don't trust it.
     BookLost,
     /// One of our orders (partly) filled.
     Fill(Fill),
     /// One of our orders left the book without filling (cancelled or rejected).
     OrderGone { client_id: u64 },
+    /// The exchange confirmed one of our orders is resting on the book.
+    OrderLive { client_id: u64, stamp: Stamp },
+    /// The executor sent orders and the exchange answered (for telemetry).
+    Sent {
+        kind: SentKind,
+        client_ids: Vec<u64>,
+        started: Instant,
+        finished: Instant,
+    },
     /// The executor could not place these orders.
     PlaceFailed { client_ids: Vec<u64> },
     /// The executor could not cancel an order, so it may still be resting.
@@ -59,6 +68,51 @@ pub enum Event {
     Tick,
     /// Ctrl-C.
     Shutdown,
+}
+
+/// When a market event happened and when we got it.
+#[derive(Debug, Clone, Copy)]
+pub struct Stamp {
+    /// When we received it, on our monotonic clock (for measuring durations).
+    pub received_at: Instant,
+    /// The same moment on the wall clock, µs since 1970 (to compare with exchange clocks).
+    pub received_unix_us: u64,
+    /// When the exchange says it sent the message, µs since 1970.
+    pub exchange_unix_us: Option<u64>,
+    /// When the exchange says the underlying trade or book change happened.
+    pub exchange_match_unix_us: Option<u64>,
+}
+
+impl Stamp {
+    /// Stamp a message arriving now.
+    pub fn now(exchange_unix_us: Option<u64>, exchange_match_unix_us: Option<u64>) -> Self {
+        let received_unix_us = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_micros() as u64);
+        Self {
+            received_at: Instant::now(),
+            received_unix_us,
+            exchange_unix_us,
+            exchange_match_unix_us,
+        }
+    }
+
+    /// A stamp with only our receive time (tests).
+    #[cfg(test)]
+    pub fn at(received_at: Instant) -> Self {
+        Self {
+            received_at,
+            received_unix_us: 0,
+            exchange_unix_us: None,
+            exchange_match_unix_us: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SentKind {
+    Place,
+    Cancel,
 }
 
 #[derive(Debug, Clone)]

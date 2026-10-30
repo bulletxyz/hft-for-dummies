@@ -2,7 +2,7 @@
 
 Code for the *HFT for dummies* series: a market maker that quotes SOL-USD on
 [Bullet](https://app.bullet.xyz/trade?r=HFT4DUMMIES), priced off Binance's SOL
-perp. Each post is one change to this repo.
+perpetual future (perp). Each post is one change to this repo.
 
 > Market making can lose money. The bot starts in **dry run**: no key, no
 > orders.
@@ -15,11 +15,11 @@ flowchart LR
     subgraph BOT["Your bot"]
         direction LR
         RX["<b>Receive + parse</b><br/>typed events<br/><i>Parts 5, 9</i>"]
-        FAIR["<b>Fair price</b><br/>ref mid / microprice<br/><i>Part 2</i>"]
+        FAIR["<b>Fair price</b><br/>Binance mid + basis<br/><i>Part 2</i>"]
         STRAT["<b>Strategy</b><br/>quotes + inventory skew<br/><i>Parts 2, 9</i>"]
         EXEC["<b>Executor</b><br/>non-blocking submit<br/><i>Parts 6, 7, 11</i>"]
     end
-    BUL["<b>Bullet</b><br/>order WS<br/><i>Parts 4, 10</i>"]
+    BUL["<b>Bullet</b><br/>order API (HTTPS)<br/><i>Parts 4, 10</i>"]
     BOOK["<b>Bullet book</b><br/>venue mid / trades<br/><i>Part 5</i>"]
     FILLS["<b>Acks + fills</b><br/>event listener<br/><i>Parts 5, 6</i>"]
     STATE["<b>Inventory / state</b><br/>feeds Strategy<br/><i>Part 2</i>"]
@@ -40,7 +40,8 @@ flowchart LR
 ```
 
 Binance moves, we reprice, requote on Bullet, and fills feed back into
-inventory. That loop is *tick to trade*; the series makes it fast.
+inventory. The series makes that loop fast: from a Binance trade to our new
+order resting on Bullet.
 
 ## Run it
 
@@ -105,7 +106,7 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 |------|------|------|
 | 1 | Introduction: the tick-to-trade loop | — |
 | 2 | Hello World | [guide](docs/parts/02-hello-world.md) · [`part-2`](https://github.com/bulletxyz/hft-for-dummies/tree/part-2) |
-| 3 | Telemetry and latency measurement | coming |
+| 3 | Telemetry and latency measurement | [guide](docs/parts/03-telemetry.md) · [`part-3`](https://github.com/bulletxyz/hft-for-dummies/tree/part-3) |
 | 4 | Colocation on AWS | coming |
 | 5 | Streaming market data | coming |
 | 6 | Order execution | coming |
@@ -114,6 +115,22 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 | 9 | Optimising the hot path | coming |
 | 10 | Network optimisation on AWS | coming |
 | 11 | Nonce management | coming |
+
+## Scoreboard
+
+The [standard benchmark](docs/parts/03-telemetry.md#the-scoreboard) at the end
+of each part: 10 minutes quoting live with `bench-live.toml`, Part 3 on a
+laptop and the rest on the Tokyo server. It splits one trip around the loop:
+
+```text
+ Binance trade ──► reaches us ──► waits in our queue ──► we decide ──► request to Bullet ──► our order is open
+                   binance→us         queue             tick-to-trade    order-to-live
+ └─────────────────────────────────────── end-to-end ───────────────────────────────────────┘
+```
+
+| Part | end-to-end p50 / p95 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p95 | queue p99 / max |
+|---|---|---|---|---|---|
+| 3 | 224 / 383 ms | (clock off) | 11 µs | (clock off) | 464 / 828 ms |
 
 ## Incidents
 
@@ -126,6 +143,7 @@ Details in each part's guide.
 | 2 | Bullet's websocket dropped a fill | Streams notify, records are truth: reconcile fills |
 | 2 | An order filled during shutdown | Check fills once more before reporting |
 | 2 | A cancel raced a fill | "Order not found" is normal; handle it (Part 6) |
+| 3 | Laptop clock 288 ms behind: messages "from the future" | Sync clocks before measuring across machines |
 
 ## License
 

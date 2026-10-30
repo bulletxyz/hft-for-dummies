@@ -1,0 +1,26 @@
+# The standard benchmark: the same settings in every part, so their
+# scoreboards compare. LIVE: trades real money (see Going live in README).
+#   cargo run --release -- run bench-live.toml   (stop after 10 minutes)
+
+network = "mainnet"
+
+dry_run = false                # live: the executor's real behaviour is part of the benchmark
+key_file = "bot.key"
+
+# Quote SOL on Bullet, using Binance's SOL perp as the price reference.
+symbol = "SOL-USD"
+binance_symbol = "SOLUSDT"
+
+# --- Strategy ---
+spread_bps = "10"             # quote 0.10% either side of fair value
+order_size = "0.05"           # SOL per order (~$5). SOL-USD's minimum is 0.01
+max_position = "0.1"          # never hold more than 0.1 SOL (~$10) long or short
+skew_bps = "5"                # at max position, lean both quotes 0.05% to unwind
+requote_threshold_bps = "1"   # requote often: more samples
+min_requote_ms = 200
+
+# --- Safety ---
+max_loss_usd = "2"            # stop quoting for this run after losing $2 (fees included)
+reference_stale_secs = 5      # no Binance price for 5s: pull quotes
+book_stale_secs = 10          # no Bullet book update for 10s: pull quotes
+basis_halflife_secs = 300     # average the Binance-Bullet gap over ~5 minutes

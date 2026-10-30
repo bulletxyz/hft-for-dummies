@@ -5,7 +5,7 @@
 //! bid and ask every time either changes, and forward each one to the bot.
 
 use std::str::FromStr;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use rust_decimal::Decimal;
@@ -13,7 +13,7 @@ use serde::Deserialize;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::events::{Bus, Event};
+use crate::events::{Bus, Event, Stamp};
 
 /// The JSON Binance sends. Prices arrive as strings so no precision is lost.
 #[derive(Deserialize)]
@@ -22,6 +22,12 @@ struct BookTicker {
     bid: String,
     #[serde(rename = "a")]
     ask: String,
+    /// When Binance sent this message (ms since 1970).
+    #[serde(rename = "E")]
+    event_ms: Option<u64>,
+    /// When the book change behind it happened (ms since 1970).
+    #[serde(rename = "T")]
+    match_ms: Option<u64>,
 }
 
 /// Start sending `symbol`'s (e.g. "SOLUSDT") best bid/ask from Binance USD-M
@@ -89,7 +95,10 @@ fn parse(text: &str) -> anyhow::Result<Event> {
     Ok(Event::Reference {
         bid: Decimal::from_str(&ticker.bid)?,
         ask: Decimal::from_str(&ticker.ask)?,
-        received_at: Instant::now(),
+        stamp: Stamp::now(
+            ticker.event_ms.map(|ms| ms * 1000),
+            ticker.match_ms.map(|ms| ms * 1000),
+        ),
     })
 }
 
@@ -100,10 +109,15 @@ mod tests {
     #[test]
     fn parses_a_real_book_ticker_message() {
         let msg = r#"{"e":"bookTicker","u":1,"s":"SOLUSDT","b":"150.10","B":"20","a":"150.12","A":"7","T":1,"E":1}"#;
-        let Event::Reference { bid, ask, .. } = parse(msg).unwrap() else {
+        let Event::Reference { bid, ask, stamp } = parse(msg).unwrap() else {
             panic!()
         };
         assert_eq!((bid, ask), (Decimal::new(15010, 2), Decimal::new(15012, 2)));
+        // Binance times are ms; we keep µs.
+        assert_eq!(
+            (stamp.exchange_unix_us, stamp.exchange_match_unix_us),
+            (Some(1000), Some(1000))
+        );
     }
 
     #[test]
