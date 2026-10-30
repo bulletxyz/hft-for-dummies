@@ -31,7 +31,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance trade → our order open\",quantile=\"0.5\"}",
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.5\"}",
           "legendFormat": "end-to-end",
           "refId": "end-to-end"
         },
@@ -76,8 +76,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"order-to-live (route + Bullet)\",quantile=\"0.5\"}",
-          "legendFormat": "5 order-to-live (route + Bullet)",
+          "expr": "hft_hop_seconds{hop=\"order-to-live (send + route + Bullet)\",quantile=\"0.5\"}",
+          "legendFormat": "5 order-to-live (send + route + Bullet)",
           "refId": "5 order-to-live (rou"
         }
       ],
@@ -108,7 +108,7 @@
     {
       "id": 2,
       "type": "timeseries",
-      "title": "End-to-end: Binance trade → our order open on Bullet",
+      "title": "End-to-end: Binance update → our order open on Bullet",
       "description": "The headline. p50 is typical, p99 is the slow 1% that gets you picked off.",
       "gridPos": {
         "x": 0,
@@ -126,7 +126,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance trade → our order open\",quantile=\"0.5\"}",
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.5\"}",
           "legendFormat": "p50",
           "refId": "p50"
         },
@@ -135,7 +135,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance trade → our order open\",quantile=\"0.95\"}",
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.95\"}",
           "legendFormat": "p95",
           "refId": "p95"
         },
@@ -144,7 +144,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance trade → our order open\",quantile=\"0.99\"}",
+          "expr": "hft_hop_seconds{hop=\"END-TO-END: Binance update → our order open\",quantile=\"0.99\"}",
           "legendFormat": "p99",
           "refId": "p99"
         }
@@ -227,8 +227,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "hft_hop_seconds{hop=\"order-to-live (route + Bullet)\",quantile=\"0.5\"}",
-          "legendFormat": "5 order-to-live (route + Bullet)",
+          "expr": "hft_hop_seconds{hop=\"order-to-live (send + route + Bullet)\",quantile=\"0.5\"}",
+          "legendFormat": "5 order-to-live (send + route + Bullet)",
           "refId": "5 order-to-live (rou"
         }
       ],

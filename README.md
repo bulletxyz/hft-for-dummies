@@ -40,7 +40,7 @@ flowchart LR
 ```
 
 Binance moves, we reprice, requote on Bullet, and fills feed back into
-inventory. The series makes that loop fast: from a Binance trade to our new
+inventory. The series makes that loop fast: from a Binance update to our new
 order resting on Bullet.
 
 ## Run it
@@ -123,7 +123,7 @@ of each part: 10 minutes quoting live with `bench-live.toml`, Part 3 on a
 laptop and the rest on the Tokyo server. It splits one trip around the loop:
 
 ```text
- Binance trade ──► reaches us ──► waits in our queue ──► we decide ──► request to Bullet ──► our order is open
+ Binance update ──► reaches us ──► waits in our queue ──► we decide ──► order to Bullet ──► our order is open
                    binance→us         queue             tick-to-trade    order-to-live
  └─────────────────────────────────────── end-to-end ───────────────────────────────────────┘
 ```
