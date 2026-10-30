@@ -100,17 +100,18 @@ are elsewhere.
 
 ## Scoreboard
 
-The [standard benchmark](03-telemetry.md#the-scoreboard), 10 minutes live
-on the Tokyo server, against Part 8 (milliseconds):
+The [standard benchmark](03-telemetry.md#the-scoreboard), live on the Tokyo
+server over Bullet's direct endpoint, against Part 8:
 
-| | tick-to-trade p50 / p99 | Binance → us p50 | queue p99 / max | Bullet accepted p50 |
-|---|---|---|---|---|
-| Part 8 | 2.2 / 27 | 1.5 | 0.01 / 3.0 | 15 |
-| **Part 9** | **2.1 / 145** | 1.5 | 0.01 / 45 | 17 |
+| | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
+|---|---|---|---|---|---|
+| Part 8 | 5.8 / 63 ms | 1.5 ms | 1 µs | 3.9 / 59 ms | 0.01 / 19 ms |
+| **Part 9** | **5.5 / 53 ms** | 1.4 ms | 1 µs | 3.7 / 47 ms | 0.01 / 16 ms |
 
-Within noise, as predicted: the gains above are nanoseconds. The p99 is
-Binance's tail on that run, plus one 45 ms stall in our queue that we didn't
-chase.
+Within noise, as predicted: the gains above are nanoseconds.
+
+Both rows are medians of three 5-minute runs taken in rotation, so they
+saw the same conditions at Bullet.
 
 ## What's next
 
