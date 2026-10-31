@@ -28,3 +28,7 @@ reference_stale_secs = 5      # no Binance price for 5s: pull quotes
 book_stale_secs = 10          # no Bullet book update for 10s: pull quotes
 basis_halflife_secs = 300     # average the Binance-Bullet gap over ~5 minutes
 metrics_port = 9000           # watch the benchmark in Grafana too (infra/grafana)
+
+# Part 8: the bot's two threads on their own cores (on the 4-core server).
+feed_core = 1
+bot_core = 2
