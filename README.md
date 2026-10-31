@@ -113,7 +113,7 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 | 7 | Rate limits | [guide](docs/parts/07-rate-limits.md) · [`part-7`](https://github.com/bulletxyz/hft-for-dummies/tree/part-7) |
 | 8 | Linux tuning | [guide](docs/parts/08-linux.md) · [`part-8`](https://github.com/bulletxyz/hft-for-dummies/tree/part-8) |
 | 9 | Optimising the hot path | [guide](docs/parts/09-hot-path.md) · [`part-9`](https://github.com/bulletxyz/hft-for-dummies/tree/part-9) |
-| 10 | Network optimisation on AWS | coming |
+| 10 | Network optimisation on AWS | [guide](docs/parts/10-network.md) · [`part-10`](https://github.com/bulletxyz/hft-for-dummies/tree/part-10) |
 | 11 | Nonce management | coming |
 
 ## Scoreboard
@@ -137,6 +137,7 @@ Tokyo server over Bullet's direct endpoint. It splits one trip around the loop:
 | 7 | 6.0 / 162 ms | 1.5 ms | 2 µs | 3.9 / 161 ms | 0.01 / 13 ms |
 | 8 | 5.8 / 63 ms | 1.5 ms | 1 µs | 3.9 / 59 ms | 0.01 / 19 ms |
 | 9 | 5.5 / 53 ms | 1.4 ms | 1 µs | 3.7 / 47 ms | 0.01 / 16 ms |
+| 10 | 6.3 / 27 ms | 1.5 ms | 1 µs | 4.7 / 23 ms | 0.01 / 21 ms |
 
 Every server run used the same machine, Part 8's 4-core c8g.xlarge (Part 4
 sets up a c8g.large). Parts 4 and 5 are single 10-minute runs; Parts 4-7 ran with threads unpinned (pinning is Part 8).
@@ -161,6 +162,7 @@ Details in each part's guide.
 | 5 | A 3 s heartbeat timeout fired falsely on wifi | Timeouts trade false alarms against reaction time |
 | 6 | Order confirmations arrived before our own request returned | Without waiting, expect any order of events |
 | 7 | "Not enough margin" logged for a post-only cross | Classify rejects; make error messages true |
+| 10 | The Dallas detour: Cloudflare served Tokyo traffic from Dallas (+100 ms) | Look at the whole path; variance is the enemy |
 
 ## License
 
