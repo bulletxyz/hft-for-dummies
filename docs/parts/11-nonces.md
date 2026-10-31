@@ -82,7 +82,9 @@ saw the same conditions at Bullet.
 
 ## Where we ended up
 
-Tick-to-trade went from 180 ms p50 on a laptop (Part 3) to 1.9 ms. Our own
-reaction (tick in, orders out) is about 10 µs, nothing we do blocks on the
-exchange, and most of what's left is Binance's 1.5 ms to reach us. Beyond our
-door is the trip to Bullet's matching engine; Part 10 shows where that goes.
+End-to-end, from a Binance update to our order open on Bullet, went from 211
+ms p50 on a laptop (Part 3) to about 5.5 ms on the Tokyo server. Our own
+reaction (tick-to-trade) is a microsecond or two, Binance's prices reach us
+in 1.5 ms, and nothing we do blocks on the exchange. Most of what's left is
+Bullet opening our order, about 4 ms over its direct endpoint; Part 10 shows
+where that goes, and what the route costs without it.
