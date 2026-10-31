@@ -130,7 +130,7 @@ Tokyo server over Bullet's direct endpoint. It splits one trip around the loop:
 
 | Part | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
 |---|---|---|---|---|---|
-| 3 | 211 / 369 ms | (clock off) | 6 µs | (clock off) | 337 / 657 ms |
+| 3 (laptop baseline) | 211 / 369 ms | (clock off) | 6 µs | (clock off) | 337 / 657 ms |
 | 4 | 26.8 / 110 ms | 1.6 ms | 1 µs | 24.6 / 89 ms | 93 / 350 ms |
 
 ## Incidents

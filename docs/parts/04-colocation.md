@@ -151,11 +151,11 @@ surprises:
 ## Scoreboard
 
 The [standard benchmark](03-telemetry.md#the-scoreboard), live on the Tokyo
-server over Bullet's direct endpoint, against Part 3 on a laptop:
+server over Bullet's direct endpoint, against Part 3's laptop baseline (a different machine, shown for the starting point only):
 
 | | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
 |---|---|---|---|---|---|
-| Part 3 (laptop) | 211 / 369 ms | (clock off) | 6 µs | (clock off) | 337 / 657 ms |
+| Part 3 (laptop baseline) | 211 / 369 ms | (clock off) | 6 µs | (clock off) | 337 / 657 ms |
 | **Part 4** | **26.8 / 110 ms** | 1.6 ms | 1 µs | 24.6 / 89 ms | 93 / 350 ms |
 
 211 ms to 27 ms: Binance's prices now arrive in 1.6 ms instead of about
