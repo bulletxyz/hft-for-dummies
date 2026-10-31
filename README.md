@@ -133,6 +133,9 @@ Tokyo server over Bullet's direct endpoint. It splits one trip around the loop:
 | 3 (laptop baseline) | 211 / 369 ms | (clock off) | 6 µs | (clock off) | 337 / 657 ms |
 | 4 | 26.8 / 110 ms | 1.6 ms | 1 µs | 24.6 / 89 ms | 93 / 350 ms |
 
+Every server run used the same machine, Part 8's 4-core c8g.xlarge (Part 4
+sets up a c8g.large). Parts 4 and 5 are single 10-minute runs.
+
 ## Incidents
 
 Things that went wrong while building this live, and what each taught us.

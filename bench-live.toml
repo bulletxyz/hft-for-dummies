@@ -6,6 +6,7 @@ network = "mainnet"
 
 dry_run = false                # live: the executor's real behaviour is part of the benchmark
 key_file = "bot.key"
+# api_url = "https://..."     # Bullet's direct endpoint, if whitelisted (Part 10)
 
 # Quote SOL on Bullet, using Binance's SOL perp as the price reference.
 symbol = "SOL-USD"

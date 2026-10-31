@@ -133,8 +133,8 @@ The same dry run, Tokyo server vs laptop:
 |---|---|---|
 | Binance → us | (clock off) | 1.5 / 35 ms |
 | Bullet book → us | (clock off) | 102 / 112 ms |
-| bot: received → handled | 10 µs / 300 µs | 3 / 6 µs |
-| bot: decide | 1 / 20 µs | 1 / 3 µs |
+| queue | 10 µs / 300 µs | 3 / 6 µs |
+| decide | 1 / 20 µs | 1 / 3 µs |
 
 Binance's prices now reach us 1.5 ms after Binance stamps them. The wire is
 only a quarter of a millisecond of that (half the 0.5 ms round trip); the
@@ -159,9 +159,13 @@ server over Bullet's direct endpoint, against Part 3's laptop baseline (a differ
 | **Part 4** | **26.8 / 110 ms** | 1.6 ms | 1 µs | 24.6 / 89 ms | 93 / 350 ms |
 
 211 ms to 27 ms: Binance's prices now arrive in 1.6 ms instead of about
-40, and each trip to Bullet takes a few milliseconds instead of over a
-hundred. Order-to-live is still most of what's left, because the bot still
-cancels, waits for the reply, then places. Part 6 stops that.
+40, and each trip to Bullet takes about 15 ms instead of over a hundred.
+Order-to-live is still most of what's left, because the bot still cancels,
+waits for the reply, then places. Part 6 stops that.
+
+The benchmark ran over Bullet's direct endpoint (`api_url` in
+`bench-live.toml`, Part 10). Through the public endpoint, Cloudflare adds a
+few milliseconds and the occasional detour.
 
 ## What's next
 
