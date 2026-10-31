@@ -24,7 +24,7 @@ terms.
 The standard tool (`src/rate_limit.rs`): a bucket holds up to N tokens and
 refills at N per second. Each transaction spends one; when the bucket is
 empty, you wait. Short bursts are fine, the average can't exceed the rate.
-`max_requests_per_sec` in `bot.toml` sets ours (default 5).
+`max_requests_per_sec` in `bot.toml` sets ours (shipped as 5; required).
 
 ## Cancels first
 
@@ -78,7 +78,7 @@ no minimum gap between requotes:
 Two lessons:
 
 1. **A market maker sends far fewer requests than you'd think.** Even
-   requoting on every half-tick move, a calm market gave us one request every
+   requoting on every half-basis-point move, a calm market gave us one request every
    two to three seconds: about 0.1% of Bullet's limit. Rate
    limits bite in bursts (a fast market, a reconnect, a bug), which is why
    the budget is there.
