@@ -28,7 +28,7 @@ machine moved, not your code.
 ## What we changed
 
 **Share the book instead of copying it.** Every book update used to produce a
-fresh copy of the whole 40-level book for the event, and the market maker
+fresh copy of the whole book (20 levels a side) for the event, and the market maker
 copied it again to keep it. Now the book is an
 [`Arc`](https://doc.rust-lang.org/std/sync/struct.Arc.html) (a shared pointer):
 the event and the market maker point at the same book, and an update changes
@@ -63,7 +63,7 @@ Back to back on the same laptop:
   scanning JSON and converting text to decimal numbers, not the allocations.
   That's why you measure before optimising: the "obvious" fix was the small one.
 - **All of this is sub-microsecond.** It reduces CPU use and jitter, but the
-  network is still a thousand times bigger. Optimise the hot path last.
+  network is still thousands of times bigger. Optimise the hot path last.
 
 ## Profile the real thing
 
