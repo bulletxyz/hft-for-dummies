@@ -16,8 +16,8 @@ whether you can have more than one request in flight. Code:
 | Window (Bullet's [`Window` mode](https://tradingapi.bullet.xyz/docs/tx-fields.md)) | unique per key within a moving window | many |
 
 With a sequential nonce, two transactions sent at once race: if the second
-arrives first, it's rejected. So you wait for each one, which is exactly the
-problem Part 6 worked around. Bullet's SDK uses window mode by default with a
+arrives first, it's rejected. So you wait for each one, which is what Parts 3-5
+did, and Part 6's worker still sends one batch at a time. Bullet's SDK uses window mode by default with a
 millisecond counter (`max(now, last + 1)`), so every transaction gets a fresh
 value and order doesn't matter.
 
@@ -29,7 +29,8 @@ cargo run --release --example in_flight
 
 `examples/in_flight.rs` sends five harmless transactions ("cancel all my
 SOL-USD orders" while there are none), first one after another, then all at
-once:
+once. It's live: it cancels any SOL-USD orders you have resting, so don't
+run it while a bot is quoting. From a laptop:
 
 ```text
 5 transactions one after another:  540 ms
@@ -62,7 +63,9 @@ orders it just placed (`undo_if_pulled`).
 
 Live from a laptop, 4 minutes quoting 2 bps wide: 44 fills, every pull (`pull: decided → all
 cancelled`) completed in one round trip (~115 ms) instead of waiting for
-in-flight requests, and the bot's final position matched the exchange's.
+in-flight requests, and the bot's final position matched the exchange's. On
+the Tokyo server a pull takes about 8.7 ms from decision to all cancelled
+(p50).
 
 ## Scoreboard
 
@@ -83,8 +86,8 @@ saw the same conditions at Bullet.
 ## Where we ended up
 
 End-to-end, from a Binance update to our order open on Bullet, went from 211
-ms p50 on a laptop (Part 3) to about 5.5 ms on the Tokyo server. Our own
+ms p50 on a laptop (Part 3) to about 5.4 ms on the Tokyo server. Our own
 reaction (tick-to-trade) is a microsecond or two, Binance's prices reach us
 in 1.5 ms, and nothing we do blocks on the exchange. Most of what's left is
-Bullet opening our order, about 4 ms over its direct endpoint; Part 10 shows
+Bullet opening our order, about 3.5 ms over its direct endpoint; Part 10 shows
 where that goes, and what the route costs without it.
