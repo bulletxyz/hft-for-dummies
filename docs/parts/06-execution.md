@@ -1,6 +1,6 @@
 # Part 6: Don't wait for the exchange
 
-An order request to Bullet takes tens of milliseconds to come back from
+An order request to Bullet takes about 15 ms to come back from
 Tokyo, over 100 from a laptop, and far longer in the tail. Until now the bot
 sat and waited for each one, deaf to Binance the whole time. This part stops
 the waiting, halves the number of requests, and sidesteps the race every
@@ -10,9 +10,9 @@ market maker hits sooner or later. Code:
 
 ## The cost of waiting
 
-Part 3's telemetry, live: `bot: received → handled` had a p99 of **2.8
-seconds**. That's how long Binance ticks sat in our queue while the loop was
-stuck on an order request. If the price moved in that window (and when the
+Part 5's benchmark, on the Tokyo server: the queue had a p99 of **100 ms**
+and a max of **540 ms**. That's how long Binance ticks sat waiting while the
+loop was stuck on an order request. If the price moved in that window (and when the
 price moves is exactly when you're requoting), we didn't see it.
 
 ## Hand off, don't wait
@@ -61,7 +61,7 @@ it happened. The worker reports that, and the strategy cancels everything and
 starts its quotes afresh.
 
 > **Incident: the confirmation that beat its request.** After this change,
-> the telemetry's "placed → live on book" row went empty. Bullet's websocket
+> the telemetry's order-to-live row went empty. Bullet's websocket
 > was announcing our new orders *before* the HTTP reply to our own request
 > arrived, and the telemetry only expected them the other way round. *Fix:*
 > match the two in whichever order they come. *Lesson:* once nothing waits,
@@ -69,13 +69,18 @@ starts its quotes afresh.
 
 ## What we measured
 
-Live from a laptop, 5 minutes each, quoting 10 bps wide:
+The benchmark on the Tokyo server, before and after:
 
-| | waiting (Parts 3-5) | Part 6 |
+| | waiting (Part 5) | Part 6 |
 |---|---|---|
-| bot: received → handled, p99 | 2,802 ms | 14 ms |
-| bot: received → handled, max | 5,014 ms | 271 ms |
+| queue p99 | 100 ms | 0.01 ms |
+| queue max | 540 ms | 20 ms |
 | requests per quote move | 2 | 1 |
+
+And why not waiting pays: Bullet's reply to a cancel-and-place takes about
+13 ms to come back (p50), but our order is open on the book after about 4.
+A bot that waits for the reply sits deaf for most of that, while its order
+is already working.
 
 ## Scoreboard
 
