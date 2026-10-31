@@ -130,7 +130,7 @@ laptop and the rest on the Tokyo server. It splits one trip around the loop:
 
 | Part | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
 |---|---|---|---|---|---|
-| 3 | 224 / 383 ms | (clock off) | 11 µs | (clock off) | 464 / 828 ms |
+| 3 | 211 / 369 ms | (clock off) | 6 µs | (clock off) | 337 / 657 ms |
 
 ## Incidents
 
