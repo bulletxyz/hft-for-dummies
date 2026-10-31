@@ -12,6 +12,10 @@ use serde::Deserialize;
 pub struct Config {
     /// "mainnet" or "testnet".
     pub network: String,
+    /// Talk to Bullet at this address instead of the network's public one,
+    /// e.g. a direct endpoint for whitelisted market makers (Part 10).
+    #[serde(default)]
+    pub api_url: Option<String>,
     /// true: watch the market and log the quotes we *would* place. No key, no money.
     pub dry_run: bool,
     /// Key file made by `cargo run -- keygen`. Only needed when `dry_run = false`.

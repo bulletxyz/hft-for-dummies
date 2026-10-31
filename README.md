@@ -107,7 +107,7 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 | 1 | Introduction: the tick-to-trade loop | — |
 | 2 | Hello World | [guide](docs/parts/02-hello-world.md) · [`part-2`](https://github.com/bulletxyz/hft-for-dummies/tree/part-2) |
 | 3 | Telemetry and latency measurement | [guide](docs/parts/03-telemetry.md) · [`part-3`](https://github.com/bulletxyz/hft-for-dummies/tree/part-3) |
-| 4 | Colocation on AWS | coming |
+| 4 | Colocation on AWS | [guide](docs/parts/04-colocation.md) · [`part-4`](https://github.com/bulletxyz/hft-for-dummies/tree/part-4) |
 | 5 | Streaming market data | coming |
 | 6 | Order execution | coming |
 | 7 | Rate limits | coming |
@@ -119,8 +119,8 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 ## Scoreboard
 
 The [standard benchmark](docs/parts/03-telemetry.md#the-scoreboard) at the end
-of each part: 10 minutes quoting live with `bench-live.toml`, Part 3 on a
-laptop and the rest on the Tokyo server. It splits one trip around the loop:
+of each part, live with `bench-live.toml`: Part 3 on a laptop, the rest on the
+Tokyo server over Bullet's direct endpoint. It splits one trip around the loop:
 
 ```text
  Binance update ──► reaches us ──► waits in our queue ──► we decide ──► order to Bullet ──► our order is open
@@ -130,7 +130,11 @@ laptop and the rest on the Tokyo server. It splits one trip around the loop:
 
 | Part | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
 |---|---|---|---|---|---|
-| 3 | 211 / 369 ms | (clock off) | 6 µs | (clock off) | 337 / 657 ms |
+| 3 (laptop baseline) | 211 / 369 ms | (clock off) | 6 µs | (clock off) | 337 / 657 ms |
+| 4 | 26.8 / 110 ms | 1.6 ms | 1 µs | 24.6 / 89 ms | 93 / 350 ms |
+
+Every server run used the same machine, Part 8's 4-core c8g.xlarge (Part 4
+sets up a c8g.large). Parts 4 and 5 are single 10-minute runs.
 
 ## Incidents
 
@@ -144,6 +148,7 @@ Details in each part's guide.
 | 2 | An order filled during shutdown | Check fills once more before reporting |
 | 2 | A cancel raced a fill | "Order not found" is normal; handle it (Part 6) |
 | 3 | Laptop clock 288 ms behind: messages "from the future" | Sync clocks before measuring across machines |
+| 4 | Our latency probe was timing DNS lookups | Know exactly what your tool measures |
 
 ## License
 
