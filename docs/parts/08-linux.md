@@ -18,10 +18,11 @@ the network card interrupting you mid-calculation.
 
 The bot now runs on exactly two threads: the Binance feed (Part 5) and
 everything else (one `tokio` current-thread runtime). Two threads are easy to
-reason about and easy to pin:
+reason about and easy to pin. Uncomment these in `bot.toml` (the benchmark
+config already sets them):
 
 ```toml
-feed_core = 1   # in bot.toml
+feed_core = 1
 bot_core = 2
 ```
 
@@ -61,7 +62,7 @@ Tokyo server, dry run, 4 minutes per step. To make jitter visible, steps 2-5
 run [`stress-ng --cpu 4`](https://github.com/ColinIanKing/stress-ng) alongside:
 a CPU hog on every core, our noisy neighbour.
 
-| Step | received → handled p99 / max | decide max |
+| Step | queue p99 / max | decide max |
 |---|---|---|
 | 1. quiet server | 5 µs / 22 µs | 24 µs |
 | 2. + noisy neighbour | 66 µs / **9.5 ms** | 175 µs |
@@ -75,10 +76,9 @@ a CPU hog on every core, our noisy neighbour.
 - **Isolation fixes it.** With cores 1-2 reserved, the loaded server behaves
   like an idle one.
 - **The rest didn't show here.** `tuned`, IRQ placement and coalescing save
-  microseconds in the kernel and network card. Our network numbers swing
-  between ~17 and ~75 ms p99 from run to run (that's Binance and the
-  internet), which drowns them. Even a direct test (Part 10) found round trips
-  to Binance unchanged with them on or off. They matter once everything else
+  microseconds in the kernel and network card, and our network numbers
+  swing by far more than that from run to run (that's Binance and the
+  internet), which drowns them. They matter once everything else
   is in order; don't expect them to rescue a slow design.
 
 ## Scoreboard
@@ -93,7 +93,7 @@ server over Bullet's direct endpoint, against Part 7:
 
 The p50 doesn't move: our part of the trip was already microseconds. What
 tuning buys is shown by the noisy-neighbour test above, where the worst case
-under load fell from milliseconds to microseconds.
+under load fell from milliseconds to microseconds in the dry-run test.
 
 Both rows are medians of three 5-minute runs taken in rotation, so they
 saw the same conditions at Bullet.
