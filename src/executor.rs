@@ -20,6 +20,9 @@ use crate::bullet::{self, Bullet, Reject};
 use crate::events::{Bus, Event, Fill, Intent, Order, SentKind, Side};
 use crate::rate_limit::TokenBucket;
 
+// Only implemented and used inside this crate, so the usual caveat about
+// `async fn` in public traits (no `Send` bound) doesn't apply.
+#[allow(async_fn_in_trait)]
 pub trait Executor {
     /// Queue `intents`. Returns immediately.
     fn execute(&mut self, intents: Vec<Intent>);
@@ -341,7 +344,7 @@ mod tests {
     }
 
     fn book_event(book: Book) -> Event {
-        Event::Book(book, Stamp::at(Instant::now()))
+        Event::Book(std::sync::Arc::new(book), Stamp::at(Instant::now()))
     }
 
     #[tokio::test]

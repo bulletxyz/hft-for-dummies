@@ -11,6 +11,7 @@
 
 use std::collections::BTreeMap;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use bullet_rust_sdk::types::{DepthUpdate, MessageType, PriceLevel};
 use rust_decimal::Decimal;
@@ -47,8 +48,9 @@ impl Book {
 /// What happened to the book after one message.
 #[derive(Debug)]
 pub enum BookEvent {
-    /// The book changed; here it is.
-    Updated(Book),
+    /// The book changed; here it is. Shared, not copied: everyone who looks
+    /// at this update reads the same book.
+    Updated(Arc<Book>),
     /// We missed a message. Don't trust any book until the next snapshot.
     Lost,
     /// Nothing to report.
@@ -59,7 +61,7 @@ pub enum BookEvent {
 #[derive(Debug, Default)]
 pub struct BookKeeper {
     /// `None` until the first snapshot, and again after we lose sync.
-    book: Option<Book>,
+    book: Option<Arc<Book>>,
     last_id: u64,
 }
 
@@ -75,18 +77,25 @@ impl BookKeeper {
                 bids: bids.into_iter().collect(),
                 asks: asks.into_iter().collect(),
             };
-            self.book = Some(book.clone());
+            let book = Arc::new(book);
+            self.book = Some(Arc::clone(&book));
             self.last_id = msg.last_update_id;
             return BookEvent::Updated(book);
         }
 
         // An update needs a book to apply to. Before the first snapshot there isn't one.
-        let Some(book) = self.book.as_mut() else {
+        if self.book.is_none() {
             return BookEvent::None;
-        };
+        }
         if msg.prev_update_id != self.last_id {
             return self.lose_sync("missed a message");
         }
+        let Some(shared) = self.book.as_mut() else {
+            return BookEvent::None;
+        };
+        // Change the book in place, or (if someone still holds the last
+        // version) change a copy of it: copy-on-write.
+        let book = Arc::make_mut(shared);
         for (side, changes) in [(&mut book.bids, bids), (&mut book.asks, asks)] {
             for (price, size) in changes {
                 if size.is_zero() {
@@ -97,7 +106,7 @@ impl BookKeeper {
             }
         }
         self.last_id = msg.last_update_id;
-        BookEvent::Updated(book.clone())
+        BookEvent::Updated(Arc::clone(shared))
     }
 
     /// The connection dropped: forget everything, a fresh snapshot is coming.
@@ -165,7 +174,7 @@ mod tests {
         )
     }
 
-    fn updated(event: BookEvent) -> Book {
+    fn updated(event: BookEvent) -> Arc<Book> {
         match event {
             BookEvent::Updated(book) => book,
             other => panic!("expected an updated book, got {other:?}"),

@@ -72,6 +72,12 @@ pub struct Telemetry {
     last_report: Instant,
 }
 
+impl Default for Telemetry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Telemetry {
     pub fn new() -> Self {
         Self {

@@ -112,7 +112,7 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 | 6 | Order execution | [guide](docs/parts/06-execution.md) · [`part-6`](https://github.com/bulletxyz/hft-for-dummies/tree/part-6) |
 | 7 | Rate limits | [guide](docs/parts/07-rate-limits.md) · [`part-7`](https://github.com/bulletxyz/hft-for-dummies/tree/part-7) |
 | 8 | Linux tuning | [guide](docs/parts/08-linux.md) · [`part-8`](https://github.com/bulletxyz/hft-for-dummies/tree/part-8) |
-| 9 | Optimising the hot path | coming |
+| 9 | Optimising the hot path | [guide](docs/parts/09-hot-path.md) · [`part-9`](https://github.com/bulletxyz/hft-for-dummies/tree/part-9) |
 | 10 | Network optimisation on AWS | coming |
 | 11 | Nonce management | coming |
 
@@ -136,6 +136,7 @@ Tokyo server over Bullet's direct endpoint. It splits one trip around the loop:
 | 6 | 5.6 / 71 ms | 1.5 ms | 2 µs | 3.9 / 70 ms | 0.01 / 20 ms |
 | 7 | 6.0 / 162 ms | 1.5 ms | 2 µs | 3.9 / 161 ms | 0.01 / 13 ms |
 | 8 | 5.8 / 63 ms | 1.5 ms | 1 µs | 3.9 / 59 ms | 0.01 / 19 ms |
+| 9 | 5.5 / 53 ms | 1.4 ms | 1 µs | 3.7 / 47 ms | 0.01 / 16 ms |
 
 Every server run used the same machine, Part 8's 4-core c8g.xlarge (Part 4
 sets up a c8g.large). Parts 4 and 5 are single 10-minute runs; Parts 4-7 ran with threads unpinned (pinning is Part 8).
