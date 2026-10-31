@@ -182,8 +182,7 @@ impl MarketMaker {
 
         // Replace a quote at half its lifetime, long before it expires.
         let refresh_after = Duration::from_secs(self.config.quote_ttl_secs) / 2;
-        let mut cancels = Vec::new();
-        let mut places = Vec::new();
+        let mut intents = Vec::new();
         for (side, want) in [(Side::Buy, wanted.bid), (Side::Sell, wanted.ask)] {
             let resting = *self.slot(side);
             let young = self
@@ -199,30 +198,31 @@ impl MarketMaker {
             if keep {
                 continue;
             }
-            if let Some(order) = resting {
-                cancels.push(Intent::Cancel {
-                    client_id: order.client_id,
-                });
-            }
             let new = want.map(|price| Order {
                 side,
                 price,
                 size: self.config.order_size,
                 client_id: self.new_client_id(),
             });
-            if let Some(order) = new {
-                places.push(Intent::Place(order));
-            }
+            intents.push(match (resting, new) {
+                // Moving a quote is one request: no moment with nothing on the book.
+                (Some(old), Some(new)) => Intent::Replace {
+                    old: old.client_id,
+                    new,
+                },
+                (Some(old), None) => Intent::Cancel {
+                    client_id: old.client_id,
+                },
+                (None, Some(new)) => Intent::Place(new),
+                (None, None) => unreachable!("kept above"),
+            });
             *self.slot(side) = new;
             *self.since(side) = Some(now);
         }
-        if cancels.is_empty() && places.is_empty() {
-            return Vec::new();
+        if !intents.is_empty() {
+            self.last_requote = Some(now);
         }
-        self.last_requote = Some(now);
-        // Cancels first: never have the old and new quote resting at once.
-        cancels.extend(places);
-        cancels
+        intents
     }
 
     fn wanted_quotes(&self, now: Instant) -> (Quotes, &'static str) {
@@ -400,7 +400,7 @@ mod tests {
         intents
             .iter()
             .filter_map(|i| match i {
-                Intent::Place(o) => Some((o.side, o.price)),
+                Intent::Place(o) | Intent::Replace { new: o, .. } => Some((o.side, o.price)),
                 _ => None,
             })
             .collect()
@@ -469,8 +469,8 @@ mod tests {
         );
         let intents = mm.requote(now);
         assert!(
-            matches!(intents[..2], [Intent::Cancel { .. }, Intent::Cancel { .. }]),
-            "cancels go first"
+            intents.iter().all(|i| matches!(i, Intent::Replace { .. })),
+            "moved quotes are replaced in one request: {intents:?}"
         );
         // Fair 100.10: bid 99.9999 rounds down, ask 100.2001 rounds up.
         assert_eq!(
@@ -507,12 +507,9 @@ mod tests {
             vec![(Side::Buy, d("99.90")), (Side::Sell, d("100.10"))],
             "same prices, fresh orders"
         );
-        assert_eq!(
-            intents
-                .iter()
-                .filter(|i| matches!(i, Intent::Cancel { .. }))
-                .count(),
-            2
+        assert!(
+            intents.iter().all(|i| matches!(i, Intent::Replace { .. })),
+            "{intents:?}"
         );
     }
 
