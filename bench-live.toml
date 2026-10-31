@@ -20,6 +20,7 @@ skew_bps = "5"                # at max position, lean both quotes 0.05% to unwin
 requote_threshold_bps = "1"   # requote often: more samples
 min_requote_ms = 200
 quote_ttl_secs = 30
+max_requests_per_sec = 5      # our own cap on order transactions (Bullet allows 240/s per key)
 
 # --- Safety ---
 max_loss_usd = "2"            # stop quoting for this run after losing $2 (fees included)
