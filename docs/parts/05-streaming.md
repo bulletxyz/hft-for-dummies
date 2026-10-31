@@ -64,10 +64,11 @@ main loop gets busier in Part 6.
 Heartbeats cover a feed dying. If the *bot* dies (a crash, a power cut, a
 lost connection), its last quotes stay on the book with nobody watching them.
 So every order now carries an **expiry**: Bullet's `CancelAndPlaceOrders`
-takes an `expiry_timestamp`, and `bullet.rs` sets it `quote_ttl_secs` (30 s)
+(its place call; here with nothing to cancel) takes an `expiry_timestamp`, and `bullet.rs` sets it `quote_ttl_secs` (30 s)
 ahead. The market maker replaces each quote at half that age, so a running
 bot never lets one lapse. This is a *dead man's switch*: it acts when
-nobody's there to act.
+nobody's there to act. (`quote_ttl_secs` is a new, required setting: if you
+run your own config file, add `quote_ttl_secs = 30` to it.)
 
 Bullet enforces expiry when matching: an expired order can no longer fill,
 and it's removed when an incoming order reaches it. Until then it still
@@ -106,5 +107,5 @@ neither.
 ## What's next
 
 The bot still waits for every order request to finish before reading the
-next event. While it waits for Bullet (27 ms typically, far longer in the
-tail), Binance can move, and we're not looking. Part 6 fixes that.
+next event. While it waits for Bullet (a cancel round trip then a place,
+about 30 ms in all, far longer in the tail), Binance can move, and we're not looking. Part 6 fixes that.

@@ -289,8 +289,9 @@ dependencies = [
 
 [[package]]
 name = "bullet-rust-sdk"
-version = "0.0.45"
-source = "git+https://github.com/bulletxyz/bullet-rust-sdk?rev=dfd58ebd87fec7e67068180025c23a198ee4a387#dfd58ebd87fec7e67068180025c23a198ee4a387"
+version = "0.0.46"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc4b96839625a2d04c6ca547641c94f1df498e7ff75dbdd9dccffd08fcc0c496"
 dependencies = [
  "base64 0.23.1",
  "bon",
