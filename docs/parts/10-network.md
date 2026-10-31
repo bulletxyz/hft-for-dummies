@@ -80,7 +80,8 @@ routing. Latency-sensitive venues keep a CDN in front of the public API (it
 absorbs attacks and abuse) and give vetted market makers a direct route: a
 regional host, an AWS [PrivateLink](https://aws.amazon.com/privatelink/)
 endpoint, a cross-connect. Bullet has one: a direct endpoint for whitelisted
-market makers. Point the bot at it with `api_url` in `bot.toml`. The server's
+market makers. Point the bot at it with `api_url` in `bot.toml` (and in
+`bench-live.toml` for the benchmark). The server's
 Elastic IP (`terraform output ip`) is what gets whitelisted.
 
 We got whitelisted and ran the benchmark four times, 10 minutes each,
@@ -90,7 +91,7 @@ from Tokyo both times, its best case:
 | Route (two runs each) | Bullet book → us p50 | order-to-live p50 / p99 | end-to-end p50 / p99 |
 |---|---|---|---|
 | direct | 1.5 ms | 4.0-4.3 / 81-83 ms | 5.9-6.7 / 92-93 ms |
-| Cloudflare, served in Tokyo | 3.5-4.5 ms | 8.2-9.9 / 27-59 ms | 10.6-12.0 / 50-61 ms |
+| Cloudflare, served in Tokyo | 3.5-4.5 ms | 8.3-9.9 / 27-59 ms | 10.6-12.0 / 50-61 ms |
 
 The direct route halves the typical trip, even against Cloudflare's best day.
 Its p99 was worse in these runs: the slow tail is Bullet processing the
@@ -101,7 +102,7 @@ Singapore and the order took about 190 ms to go live. That's what the direct
 route really buys: the bad days go away.
 
 If you're not a whitelisted market maker, this is the honest caveat for
-everything after Part 6: your numbers to Bullet depend on where Cloudflare
+every scoreboard from Part 4 on: your numbers to Bullet depend on where Cloudflare
 serves you that day.
 
 **Lessons.**
@@ -200,7 +201,7 @@ server over Bullet's direct endpoint, against Part 9:
 | Part 9 | 5.5 / 53 ms | 1.4 ms | 1 µs | 3.7 / 47 ms | 0.01 / 16 ms |
 | **Part 10** | **6.3 / 27 ms** | 1.5 ms | 1 µs | 4.7 / 23 ms | 0.01 / 21 ms |
 
-Unchanged here, because every part's benchmark already runs over Bullet's
+Unchanged here, because every scoreboard here was run over Bullet's
 direct endpoint. This part's gain is in the comparison above: about 6 ms
 direct against 11 ms through Cloudflare on its best day.
 

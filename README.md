@@ -162,7 +162,7 @@ Details in each part's guide.
 | 5 | A 3 s heartbeat timeout fired falsely on wifi | Timeouts trade false alarms against reaction time |
 | 6 | Order confirmations arrived before our own request returned | Without waiting, expect any order of events |
 | 7 | "Not enough margin" logged for a post-only cross | Classify rejects; make error messages true |
-| **10** | **The Dallas detour: Cloudflare served Tokyo traffic from Dallas (+100 ms)** | **Look at the whole path; variance is the enemy** |
+| 10 | The Dallas detour: Cloudflare served Tokyo traffic from Dallas (+100 ms) | Look at the whole path; variance is the enemy |
 
 ## License
 
