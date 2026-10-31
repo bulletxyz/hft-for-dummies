@@ -226,10 +226,10 @@ This part's benchmark, 10 minutes live from a laptop:
 
 | | end-to-end p50 / p99 | Binance → us p50 | tick-to-trade p50 | order-to-live p50 / p99 | queue p99 / max |
 |---|---|---|---|---|---|
-| Part 3 (laptop) | 224 / 383 ms | (clock off) | 11 µs | (clock off) | 464 / 828 ms |
+| Part 3 (laptop) | 211 / 369 ms | (clock off) | 6 µs | (clock off) | 337 / 657 ms |
 
-The baseline: 224 ms from a Binance update to our order resting on Bullet,
-and our code is 11 µs of it. Binance's prices take about 40 ms to reach a
+The baseline: 211 ms from a Binance update to our order resting on Bullet,
+and our code is 6 µs of it. Binance's prices take about 40 ms to reach a
 laptop; nearly all the rest is order-to-live, because the bot cancels the old
 order, waits for Bullet's reply, and only then sends the new one, each leg a
 trip to Tokyo and back (see the dashboard above).
