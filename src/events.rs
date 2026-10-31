@@ -114,6 +114,8 @@ pub enum SentKind {
     Place,
     Replace,
     Cancel,
+    /// Cancel everything; timed from the decision to pull.
+    CancelAll,
 }
 
 #[derive(Debug, Clone)]
