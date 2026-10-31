@@ -12,14 +12,15 @@
 //! withdraw. If it ever leaks, your funds stay put.
 
 use std::str::FromStr;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
 use bullet_rust_sdk::codegen::types::Filter;
 use bullet_rust_sdk::types::{OrderUpdateData, OrderUpdateMessage};
 use bullet_rust_sdk::{
-    CancelOrderArgs, Client, ClientOrderId, Keypair, MarketId, Network, NewOrderArgs, OrderType,
-    OrderbookDepth, PositiveDecimal, ServerMessage, Side as BulletSide, Topic,
-    UserActionDiscriminants, WsEvent,
+    CancelOrderArgs, Client, ClientOrderId, Keypair, ManagedWsConfig, MarketId, Network,
+    NewOrderArgs, OrderType, OrderbookDepth, PositiveDecimal, ServerMessage, Side as BulletSide,
+    Topic, UnixTimestampMicros, UserActionDiscriminants, WsEvent,
 };
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -36,6 +37,8 @@ pub struct Bullet {
     account: Option<String>,
     /// Prices must be a multiple of this.
     pub tick: Decimal,
+    /// How long each order we place lives.
+    quote_ttl: Duration,
 }
 
 /// Connect, and start sending the book (and, live, our order updates) to `bus`.
@@ -55,7 +58,7 @@ pub async fn connect(config: &Config, bus: Bus) -> Result<Bullet> {
         })
         .maybe_keypair(keypair)
         .user_actions(vec![
-            UserActionDiscriminants::PlaceOrders,
+            UserActionDiscriminants::CancelAndPlaceOrders,
             UserActionDiscriminants::CancelOrders,
             UserActionDiscriminants::CancelMarketOrders,
         ])
@@ -87,57 +90,54 @@ pub async fn connect(config: &Config, bus: Bus) -> Result<Bullet> {
     }
     tracing::info!(symbol = %config.symbol, %tick, %step, %min_size, account = ?account, "bullet: connected");
 
-    let mut topics = vec![Topic::depth(config.symbol.as_str(), OrderbookDepth::D20)];
-    if let Some(account) = &account {
-        topics.push(Topic::user_orders(account.clone()));
-    }
-    let mut ws = client
-        .connect_ws_managed()
-        .call()
-        .await
-        .context("opening Bullet websocket")?;
-    ws.subscribe(topics, None).context("subscribing")?;
-
+    // Two connections: the order book on one, our own orders and fills on
+    // the other. A flood of book updates can't delay news of a fill, and if
+    // one connection drops the other carries on.
     let symbol = config.symbol.clone();
-    tokio::spawn(async move {
-        let mut book = BookKeeper::default();
-        loop {
-            let event = match ws.recv().await {
-                Some(WsEvent::Message(msg)) => match *msg {
-                    ServerMessage::DepthUpdate(depth) if depth.symbol == symbol => {
-                        match book.on_message(&depth) {
-                            BookEvent::Updated(book) => Some(Event::Book(
-                                book,
-                                Stamp::now(Some(depth.event_time), Some(depth.transaction_time)),
-                            )),
-                            BookEvent::Lost => Some(Event::BookLost),
-                            BookEvent::None => None,
-                        }
-                    }
+    let mut book = BookKeeper::default();
+    let book_topic = Topic::depth(config.symbol.as_str(), OrderbookDepth::D20);
+    spawn_socket(&client, book_topic, bus.clone(), move |event| match event {
+        WsEvent::Message(msg) => match *msg {
+            ServerMessage::DepthUpdate(depth) if depth.symbol == symbol => {
+                match book.on_message(&depth) {
+                    BookEvent::Updated(book) => Some(Event::Book(
+                        book,
+                        Stamp::now(Some(depth.event_time), Some(depth.transaction_time)),
+                    )),
+                    BookEvent::Lost => Some(Event::BookLost),
+                    BookEvent::None => None,
+                }
+            }
+            _ => None,
+        },
+        WsEvent::Reconnecting => {
+            book.reset();
+            Some(Event::Reconnecting)
+        }
+        WsEvent::Disconnected(why) => Some(Event::Disconnected(why)),
+    })
+    .await?;
+
+    if let Some(account) = &account {
+        let symbol = config.symbol.clone();
+        spawn_socket(
+            &client,
+            Topic::user_orders(account.clone()),
+            bus,
+            move |event| match event {
+                WsEvent::Message(msg) => match *msg {
                     ServerMessage::OrderUpdate(update) => {
                         tracing::debug!(?update, "bullet: order update");
                         order_event(&update, &symbol)
                     }
                     _ => None,
                 },
-                Some(WsEvent::Reconnecting) => {
-                    book.reset();
-                    Some(Event::Reconnecting)
-                }
-                Some(WsEvent::Disconnected(why)) => Some(Event::Disconnected(why)),
-                None => Some(Event::Disconnected("websocket closed".into())),
-            };
-            let done = matches!(event, Some(Event::Disconnected(_)));
-            if let Some(event) = event
-                && bus.send(event).is_err()
-            {
-                return;
-            }
-            if done {
-                return;
-            }
-        }
-    });
+                WsEvent::Reconnecting => Some(Event::Reconnecting),
+                WsEvent::Disconnected(why) => Some(Event::Disconnected(why)),
+            },
+        )
+        .await?;
+    }
 
     Ok(Bullet {
         client,
@@ -145,12 +145,15 @@ pub async fn connect(config: &Config, bus: Bus) -> Result<Bullet> {
         symbol: config.symbol.clone(),
         account,
         tick,
+        quote_ttl: Duration::from_secs(config.quote_ttl_secs),
     })
 }
 
 impl Bullet {
     /// Place post-only orders. Post-only means "rest on the book or be
     /// rejected", so we only ever earn the spread, never pay to cross it.
+    /// Each expires after `quote_ttl_secs`: if the bot dies, its quotes stop
+    /// being fillable on their own.
     pub async fn place(&self, orders: &[Order]) -> Result<()> {
         let orders = orders
             .iter()
@@ -171,8 +174,10 @@ impl Bullet {
                 })
             })
             .collect::<Result<Vec<_>>>()?;
+        let expiry = SystemTime::now().duration_since(UNIX_EPOCH)? + self.quote_ttl;
+        let expiry = UnixTimestampMicros::from_micros(i64::try_from(expiry.as_micros())?);
         self.client
-            .place_orders(self.market_id, orders, false, None)
+            .cancel_and_place_orders(self.market_id, vec![], orders, Some(expiry), None)
             .await?;
         Ok(())
     }
@@ -236,6 +241,55 @@ impl Bullet {
             .find(|p| p.symbol == self.symbol)
             .map_or(Decimal::ZERO, |p| p.position_amt))
     }
+}
+
+/// We ping each connection every second and Bullet answers every ping, so a
+/// healthy connection is never quiet for long. This long without hearing
+/// anything means it's dead: reconnect.
+const DEAD_AFTER: Duration = Duration::from_secs(3);
+
+/// Open one websocket subscribed to `topic`, and send what `handle` makes of
+/// each message to `bus`. The SDK reconnects (and resubscribes) by itself.
+async fn spawn_socket(
+    client: &Client,
+    topic: Topic,
+    bus: Bus,
+    mut handle: impl FnMut(WsEvent) -> Option<Event> + Send + 'static,
+) -> Result<()> {
+    let config = ManagedWsConfig::builder().idle_timeout(DEAD_AFTER).build();
+    let mut ws = client
+        .connect_ws_managed()
+        .config(config)
+        .call()
+        .await
+        .context("opening Bullet websocket")?;
+    ws.subscribe(vec![topic], None).context("subscribing")?;
+    tokio::spawn(async move {
+        let mut ping = tokio::time::interval(Duration::from_secs(1));
+        loop {
+            let event = tokio::select! {
+                event = ws.recv() => event,
+                _ = ping.tick() => {
+                    let _ = ws.ping(None);
+                    continue;
+                }
+            };
+            let event = match event {
+                Some(event) => handle(event),
+                None => Some(Event::Disconnected("websocket closed".into())),
+            };
+            let done = matches!(event, Some(Event::Disconnected(_)));
+            if let Some(event) = event
+                && bus.send(event).is_err()
+            {
+                return;
+            }
+            if done {
+                return;
+            }
+        }
+    });
+    Ok(())
 }
 
 /// Tick size, size step and minimum size for `symbol`.

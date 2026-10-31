@@ -8,7 +8,7 @@ publish = false
 [dependencies]
 anyhow = "1"
 bs58 = "0.5"
-bullet-rust-sdk = { version = "0.0.45", default-features = false }
+bullet-rust-sdk = { version = "0.0.46", default-features = false }
 clap = { version = "4", features = ["derive"] }
 futures-util = "0.3"
 hdrhistogram = { version = "7", default-features = false }
@@ -23,3 +23,4 @@ tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 toml = "0.9"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+

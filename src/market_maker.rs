@@ -30,6 +30,9 @@ pub struct MarketMaker {
     book: Option<(Book, Instant)>,
     bid: Option<Order>,
     ask: Option<Order>,
+    /// When we asked for the resting bid and ask; they expire `quote_ttl_secs` later.
+    bid_since: Option<Instant>,
+    ask_since: Option<Instant>,
     inventory: Inventory,
     next_client_id: u64,
     last_requote: Option<Instant>,
@@ -54,6 +57,8 @@ impl MarketMaker {
             book: None,
             bid: None,
             ask: None,
+            bid_since: None,
+            ask_since: None,
             inventory: Inventory::default(),
             next_client_id,
             last_requote: None,
@@ -175,13 +180,18 @@ impl MarketMaker {
             return Vec::new();
         }
 
+        // Replace a quote at half its lifetime, long before it expires.
+        let refresh_after = Duration::from_secs(self.config.quote_ttl_secs) / 2;
         let mut cancels = Vec::new();
         let mut places = Vec::new();
         for (side, want) in [(Side::Buy, wanted.bid), (Side::Sell, wanted.ask)] {
             let resting = *self.slot(side);
+            let young = self
+                .since(side)
+                .is_some_and(|t| now.duration_since(t) < refresh_after);
             let keep = match (resting, want) {
                 (Some(order), Some(price)) => {
-                    drift_bps(order.price, price) < self.config.requote_threshold_bps
+                    young && drift_bps(order.price, price) < self.config.requote_threshold_bps
                 }
                 (None, None) => true,
                 _ => false,
@@ -204,6 +214,7 @@ impl MarketMaker {
                 places.push(Intent::Place(order));
             }
             *self.slot(side) = new;
+            *self.since(side) = Some(now);
         }
         if cancels.is_empty() && places.is_empty() {
             return Vec::new();
@@ -286,6 +297,13 @@ impl MarketMaker {
         match side {
             Side::Buy => &mut self.bid,
             Side::Sell => &mut self.ask,
+        }
+    }
+
+    fn since(&mut self, side: Side) -> &mut Option<Instant> {
+        match side {
+            Side::Buy => &mut self.bid_since,
+            Side::Sell => &mut self.ask_since,
         }
     }
 
@@ -458,6 +476,43 @@ mod tests {
         assert_eq!(
             places(&intents),
             vec![(Side::Buy, d("99.99")), (Side::Sell, d("100.21"))]
+        );
+    }
+
+    #[test]
+    fn refreshes_quotes_before_they_expire() {
+        let (mut mm, now) = warmed_up();
+        mm.requote(now);
+        let half_life = Duration::from_secs(mm.config.quote_ttl_secs) / 2;
+        // The market doesn't move, but keeps ticking so nothing goes stale.
+        let book = mm.book.clone().unwrap().0;
+        let tick = |mm: &mut MarketMaker, t: Instant| {
+            mm.on_event(
+                &Event::Reference {
+                    bid: d("99.5"),
+                    ask: d("100.5"),
+                    stamp: Stamp::at(t),
+                },
+                t,
+            );
+            mm.on_event(&Event::Book(book.clone(), Stamp::at(t)), t);
+        };
+        let young = now + half_life - Duration::from_secs(1);
+        tick(&mut mm, young);
+        assert!(mm.requote(young).is_empty(), "still young: keep");
+        tick(&mut mm, now + half_life);
+        let intents = mm.requote(now + half_life);
+        assert_eq!(
+            places(&intents),
+            vec![(Side::Buy, d("99.90")), (Side::Sell, d("100.10"))],
+            "same prices, fresh orders"
+        );
+        assert_eq!(
+            intents
+                .iter()
+                .filter(|i| matches!(i, Intent::Cancel { .. }))
+                .count(),
+            2
         );
     }
 

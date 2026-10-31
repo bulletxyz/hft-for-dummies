@@ -7,6 +7,7 @@
 #   ./infra/bot/deploy.sh logs     follow the bot's log
 #   ./infra/bot/deploy.sh bench    10 minutes of bench-live.toml, then the scoreboard
 #   ./infra/bot/deploy.sh stop     stop the bot (it cancels its orders)
+#   ./infra/bot/deploy.sh chaos binance|bullet   cut one exchange off, time how fast the bot notices
 #   ./infra/bot/deploy.sh destroy  stop and delete the server
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -41,6 +42,7 @@ case "${1:-deploy}" in
     ssh_bot "echo $before >~/hft-config && sudo systemctl restart hft-bot && journalctl -u hft-bot --since '-11min' -o cat | grep SCOREBOARD | tail -1"
     exit ;;
   stop) ssh_bot sudo systemctl stop hft-bot; exit ;;
+  chaos) ssh_bot "bash -s $2" <chaos.sh; exit ;;
   destroy) ssh_bot sudo systemctl stop hft-bot || true; tf destroy -auto-approve; exit ;;
 esac
 
