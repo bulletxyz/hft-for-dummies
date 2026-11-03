@@ -66,7 +66,7 @@ async fn event_loop(
 ) -> Result<()> {
     let mut telemetry = Telemetry::new();
 
-    executor.execute(market_maker.start()).await;
+    executor.execute(market_maker.start());
     let result = loop {
         let Some(event) = events.recv().await else {
             break Ok(());
@@ -89,7 +89,7 @@ async fn event_loop(
         executor.on_event(&event);
         let intents = market_maker.on_event(&event, now);
         let mut decide = now.elapsed();
-        executor.execute(intents).await;
+        executor.execute(intents);
 
         // Only quote on the newest information: if more events are already
         // waiting, read them first. A quote based on a price we know is old
@@ -100,17 +100,22 @@ async fn event_loop(
             let decided = Instant::now();
             decide += decided - started;
             telemetry.record(telemetry::DECIDE, decide);
-            if tick.is_some() && intents.iter().any(|i| matches!(i, Intent::Place(_))) {
+            if tick.is_some()
+                && intents
+                    .iter()
+                    .any(|i| matches!(i, Intent::Place(_) | Intent::Replace { .. }))
+            {
                 // From picking the update up, so time waiting in the queue
                 // (step 3) isn't counted twice.
                 telemetry.record(telemetry::TICK_TO_TRADE, decided - now);
             }
             telemetry.on_decision(&intents, tick.as_ref(), now, decided);
-            executor.execute(intents).await;
+            executor.execute(intents);
         }
     };
     tracing::info!("shutting down: cancelling our orders");
-    executor.execute(market_maker.stop()).await;
+    executor.execute(market_maker.stop());
+    executor.finish().await; // wait for the final cancel to go through
 
     // An order can fill in the instant before our cancel lands. Keep listening
     // for a moment so the final numbers include those fills.

@@ -52,6 +52,7 @@ const TRIP: [&str; 5] = [
 pub const DECIDE: &str = "decide (every requote)";
 pub const SUBMIT_PLACE: &str = "Bullet's reply to a place (round trip)";
 pub const SUBMIT_CANCEL: &str = "Bullet's reply to a cancel (round trip)";
+pub const SUBMIT_REPLACE: &str = "Bullet's reply to a replace (round trip)";
 pub const BULLET_NETWORK: &str = "Bullet book → us (network)";
 
 pub struct Telemetry {
@@ -120,6 +121,7 @@ impl Telemetry {
             } => {
                 let hop = match kind {
                     crate::events::SentKind::Place => SUBMIT_PLACE,
+                    crate::events::SentKind::Replace => SUBMIT_REPLACE,
                     crate::events::SentKind::Cancel => SUBMIT_CANCEL,
                 };
                 self.record(hop, finished.saturating_duration_since(*started));
@@ -159,7 +161,9 @@ impl Telemetry {
             decided_us: wall_clock(decided),
         };
         for intent in intents {
-            if let crate::events::Intent::Place(order) = intent {
+            if let crate::events::Intent::Place(order)
+            | crate::events::Intent::Replace { new: order, .. } = intent
+            {
                 self.decided.insert(order.client_id, decision);
             }
         }

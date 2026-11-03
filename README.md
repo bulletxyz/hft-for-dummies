@@ -109,7 +109,7 @@ Each part is one PR on `master`, tagged `part-N`, with a short guide in
 | 3 | Telemetry and latency measurement | [guide](docs/parts/03-telemetry.md) · [`part-3`](https://github.com/bulletxyz/hft-for-dummies/tree/part-3) |
 | 4 | Colocation on AWS | [guide](docs/parts/04-colocation.md) · [`part-4`](https://github.com/bulletxyz/hft-for-dummies/tree/part-4) |
 | 5 | Streaming market data | [guide](docs/parts/05-streaming.md) · [`part-5`](https://github.com/bulletxyz/hft-for-dummies/tree/part-5) |
-| 6 | Order execution | coming |
+| 6 | Order execution | [guide](docs/parts/06-execution.md) · [`part-6`](https://github.com/bulletxyz/hft-for-dummies/tree/part-6) |
 | 7 | Rate limits | coming |
 | 8 | Linux tuning | coming |
 | 9 | Optimising the hot path | coming |
@@ -133,9 +133,14 @@ Tokyo server over Bullet's direct endpoint. It splits one trip around the loop:
 | 3 (laptop baseline) | 211 / 369 ms | (clock off) | 6 µs | (clock off) | 337 / 657 ms |
 | 4 | 26.8 / 110 ms | 1.6 ms | 1 µs | 24.6 / 89 ms | 93 / 350 ms |
 | 5 | 25.5 / 121 ms | 1.6 ms | 1 µs | 23.2 / 119 ms | 100 / 540 ms |
+| 6 | 5.6 / 71 ms | 1.5 ms | 2 µs | 3.9 / 70 ms | 0.01 / 20 ms |
 
 Every server run used the same machine, Part 8's 4-core c8g.xlarge (Part 4
 sets up a c8g.large). Parts 4 and 5 are single 10-minute runs.
+
+Parts 6-11 are each the median of three 5-minute runs, taken in rotation so
+every part saw the same conditions at Bullet. One run after another, Bullet's
+speed drifted more over an evening than these parts change it. p99 is noisy from run to run.
 
 ## Incidents
 
@@ -147,10 +152,11 @@ Details in each part's guide.
 | 2 | Binance socket went silent, no error | Silence isn't "nothing happened": time out and reconnect |
 | 2 | Bullet's websocket dropped a fill | Streams notify, records are truth: reconcile fills |
 | 2 | An order filled during shutdown | Check fills once more before reporting |
-| 2 | A cancel raced a fill | "Order not found" is normal; handle it (Part 6) |
+| 2 | A cancel raced a fill | "Order not found" is normal: plan for it (Part 6 avoids it) |
 | 3 | Laptop clock 288 ms behind: messages "from the future" | Sync clocks before measuring across machines |
 | 4 | Our latency probe was timing DNS lookups | Know exactly what your tool measures |
 | 5 | A 3 s heartbeat timeout fired falsely on wifi | Timeouts trade false alarms against reaction time |
+| 6 | Order confirmations arrived before our own request returned | Without waiting, expect any order of events |
 
 ## License
 
