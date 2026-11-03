@@ -11,6 +11,8 @@
 //! worker task and returns at once, so the bot keeps reading prices while a
 //! request to Bullet is in flight. Results come back as events.
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use tokio::sync::mpsc;
@@ -34,44 +36,102 @@ pub trait Executor {
     async fn finish(self);
 }
 
-/// Sends intents to a worker task that talks to Bullet, one batch at a time.
+/// Sends intents to Bullet on two lanes, each a worker task:
+///
+/// - the **order lane** places, moves and cancels quotes, one batch at a
+///   time, so each order's requests stay in order;
+/// - the **pull lane** carries "cancel everything" (and what must follow it),
+///   so a pull never waits behind an order request already in flight.
+///
+/// Two requests in flight at once is only possible because Bullet accepts
+/// transactions in any order within a window (Part 11).
 pub struct LiveExecutor {
-    queue: mpsc::UnboundedSender<Vec<Intent>>,
-    worker: JoinHandle<()>,
+    orders: mpsc::UnboundedSender<(Instant, Vec<Intent>)>,
+    pulls: mpsc::UnboundedSender<(Instant, Vec<Intent>)>,
+    workers: Vec<JoinHandle<()>>,
+    /// Counts pulls, so the order lane can tell one happened mid-request.
+    pull_count: Arc<AtomicU64>,
 }
 
 impl LiveExecutor {
     pub fn new(bullet: Bullet, bus: Bus, max_requests_per_sec: f64) -> Self {
-        let (queue, mut batches) = mpsc::unbounded_channel::<Vec<Intent>>();
-        // A one-second burst, a quarter of it kept for cancels.
-        let mut worker = Worker {
-            bullet,
-            bus,
-            budget: TokenBucket::new(max_requests_per_sec, max_requests_per_sec),
-            reserve: (max_requests_per_sec / 4.0).max(1.0),
-            fills_since_us: None,
+        let bullet = Arc::new(bullet);
+        let pull_count = Arc::new(AtomicU64::new(0));
+        let fills_since_us = Arc::new(AtomicU64::new(0));
+        let lane = |rate: f64| Worker {
+            bullet: Arc::clone(&bullet),
+            bus: bus.clone(),
+            // A one-second burst, a quarter of it kept for cancels. Each lane
+            // has its own; pulls are rare, so the total stays close to `rate`.
+            budget: TokenBucket::new(rate, rate),
+            reserve: (rate / 4.0).max(1.0),
+            fills_since_us: Arc::clone(&fills_since_us),
+            pull_count: Arc::clone(&pull_count),
         };
-        let worker = tokio::spawn(async move {
-            // One batch at a time, in order: a cancel always lands before the
-            // order that follows it.
-            while let Some(batch) = batches.recv().await {
-                worker.run(batch).await;
-            }
-        });
-        Self { queue, worker }
+        let (orders, order_worker) = spawn_lane(lane(max_requests_per_sec));
+        let (pulls, pull_worker) = spawn_lane(lane(max_requests_per_sec));
+        Self {
+            orders,
+            pulls,
+            workers: vec![order_worker, pull_worker],
+            pull_count,
+        }
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Lane {
+    Orders,
+    Pulls,
+}
+
+/// A batch that starts with "cancel everything" is a pull: it jumps the queue.
+/// What follows it (reading fills or the position) must happen after the
+/// cancel, so it rides along on the same lane.
+fn lane_for(intents: &[Intent]) -> Option<Lane> {
+    match intents.first()? {
+        Intent::CancelAll => Some(Lane::Pulls),
+        _ => Some(Lane::Orders),
+    }
+}
+
+/// A worker task that runs batches one at a time, in the order they arrive.
+fn spawn_lane(
+    mut worker: Worker,
+) -> (
+    mpsc::UnboundedSender<(Instant, Vec<Intent>)>,
+    JoinHandle<()>,
+) {
+    let (queue, mut batches) = mpsc::unbounded_channel::<(Instant, Vec<Intent>)>();
+    let task = tokio::spawn(async move {
+        while let Some((decided, batch)) = batches.recv().await {
+            worker.run(decided, batch).await;
+        }
+    });
+    (queue, task)
 }
 
 impl Executor for LiveExecutor {
     fn execute(&mut self, intents: Vec<Intent>) {
-        if !intents.is_empty() {
-            let _ = self.queue.send(intents);
+        match lane_for(&intents) {
+            None => {}
+            Some(Lane::Pulls) => {
+                self.pull_count.fetch_add(1, Ordering::SeqCst);
+                let _ = self.pulls.send((Instant::now(), intents));
+            }
+            Some(Lane::Orders) => {
+                let _ = self.orders.send((Instant::now(), intents));
+            }
         }
     }
 
     async fn finish(self) {
-        drop(self.queue); // no more work: the worker stops once the queue is empty
-        let _ = self.worker.await;
+        // No more work: each lane stops once its queue is empty.
+        drop(self.orders);
+        drop(self.pulls);
+        for worker in self.workers {
+            let _ = worker.await;
+        }
     }
 }
 
@@ -82,19 +142,23 @@ enum Priority {
 }
 
 struct Worker {
-    bullet: Bullet,
+    bullet: Arc<Bullet>,
     bus: Bus,
     /// Our own cap on transactions per second (see `max_requests_per_sec`).
     budget: TokenBucket,
     /// Tokens new orders must leave for cancels.
     reserve: f64,
-    /// Fills from this time on (µs since 1970) are ours to count. Set when we
-    /// read the starting position: everything before is already in it.
-    fills_since_us: Option<u64>,
+    /// Fills from this time on (µs since 1970, 0 = not yet) are ours to count.
+    /// Set when we read the starting position: everything before is in it.
+    fills_since_us: Arc<AtomicU64>,
+    pull_count: Arc<AtomicU64>,
 }
 
 impl Worker {
-    async fn run(&mut self, intents: Vec<Intent>) {
+    async fn run(&mut self, decided: Instant, intents: Vec<Intent>) {
+        // If a pull happens while this batch's requests are in flight, the
+        // cancel-all might land before our new orders do (see `undo_if_pulled`).
+        let pulls_before = self.pull_count.load(Ordering::SeqCst);
         let mut cancels = Vec::new();
         let mut replaces = Vec::new();
         let mut places = Vec::new();
@@ -105,10 +169,16 @@ impl Worker {
                 Intent::Cancel { client_id } => cancels.push(client_id),
                 Intent::CancelAll => {
                     self.spend(Priority::Cancel).await;
-                    if let Err(e) = self.bullet.cancel_all().await {
-                        tracing::error!(
+                    match self.bullet.cancel_all().await {
+                        // Timed from the decision to pull, queueing included.
+                        Ok(()) => self.send(Event::Sent {
+                            kind: SentKind::CancelAll,
+                            started: decided,
+                            finished: Instant::now(),
+                        }),
+                        Err(e) => tracing::error!(
                             "cancel all failed, check the Bullet app for resting orders: {e}"
-                        );
+                        ),
                     }
                 }
                 Intent::SyncPosition => match self.bullet.position().await {
@@ -118,16 +188,21 @@ impl Worker {
                         // 10s later: nothing of ours can fill that early anyway,
                         // since we cancelled everything and the bot spends its
                         // first minute warming up before it quotes.
-                        self.fills_since_us
-                            .get_or_insert_with(|| unix_us() + 10_000_000);
+                        let _ = self.fills_since_us.compare_exchange(
+                            0,
+                            unix_us() + 10_000_000,
+                            Ordering::SeqCst,
+                            Ordering::SeqCst,
+                        );
                         self.send(Event::Position(position));
                     }
                     Err(e) => tracing::error!("reading our position failed: {e}"),
                 },
                 Intent::SyncFills => {
-                    let Some(since) = self.fills_since_us else {
+                    let since = self.fills_since_us.load(Ordering::SeqCst);
+                    if since == 0 {
                         continue;
-                    };
+                    }
                     match self.bullet.fills_since(since).await {
                         Ok(fills) => fills.into_iter().for_each(|f| self.send(Event::Fill(f))),
                         Err(e) => tracing::warn!("checking our fills failed (will retry): {e}"),
@@ -161,7 +236,7 @@ impl Worker {
             .timed(kind, self.bullet.cancel_and_place(&cancels, &places))
             .await
         else {
-            return;
+            return self.undo_if_pulled(pulls_before, &new_ids).await;
         };
         // A rejected request did nothing: the old orders still rest.
         match bullet::classify(&e) {
@@ -192,6 +267,21 @@ impl Worker {
                 Err(e) if bullet::classify(&e) == Reject::RateLimited => self.budget.empty(), // wait, then try again
                 Err(e) => return self.give_up(&e, Vec::new()),
             }
+        }
+    }
+
+    /// A pull happened while we were placing these orders, so its cancel-all
+    /// may have landed first and left them resting: cancel them now. The
+    /// strategy already forgot them when it pulled.
+    async fn undo_if_pulled(&mut self, pulls_before: u64, client_ids: &[u64]) {
+        if self.pull_count.load(Ordering::SeqCst) == pulls_before {
+            return;
+        }
+        tracing::info!("pulled while placing; cancelling those orders too");
+        self.spend(Priority::Cancel).await;
+        if let Err(e) = self.bullet.cancel_and_place(client_ids, &[]).await {
+            tracing::warn!("cancel after pull failed: {e}");
+            self.send(Event::CancelFailed);
         }
     }
 
@@ -420,6 +510,31 @@ mod tests {
             panic!("expected a fill")
         };
         assert_eq!(fill.client_id, Some(2));
+    }
+
+    #[test]
+    fn pulls_jump_the_queue_with_what_follows_them() {
+        let bid = Order {
+            side: Side::Buy,
+            price: d("100"),
+            size: d("1"),
+            client_id: 1,
+        };
+        assert_eq!(
+            lane_for(&[Intent::CancelAll, Intent::SyncFills]),
+            Some(Lane::Pulls)
+        );
+        assert_eq!(
+            lane_for(&[Intent::CancelAll, Intent::SyncPosition]),
+            Some(Lane::Pulls)
+        );
+        assert_eq!(lane_for(&[Intent::Place(bid)]), Some(Lane::Orders));
+        assert_eq!(
+            lane_for(&[Intent::Cancel { client_id: 1 }]),
+            Some(Lane::Orders)
+        );
+        assert_eq!(lane_for(&[Intent::SyncFills]), Some(Lane::Orders));
+        assert_eq!(lane_for(&[]), None);
     }
 
     #[tokio::test]
