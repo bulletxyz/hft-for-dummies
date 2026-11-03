@@ -31,3 +31,7 @@ basis_halflife_secs = 300     # average the Binance-Bullet gap over ~5 minutes
 
 # --- Watching it ---
 metrics_port = 9000           # latency metrics for Grafana (infra/grafana); remove to turn off
+
+# --- CPU pinning (Part 8; on a 4-core Linux server) ---
+# feed_core = 1               # the Binance feed thread
+# bot_core = 2                # everything else

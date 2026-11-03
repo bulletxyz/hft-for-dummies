@@ -11,7 +11,6 @@
 //! time, lets the market maker update its view, and once it has caught up
 //! with everything waiting, asks it what orders it wants.
 
-use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
@@ -24,8 +23,7 @@ use crate::market_maker::MarketMaker;
 use crate::telemetry::{self, Telemetry};
 use crate::{binance, bullet};
 
-pub async fn run(config_path: &Path, live: bool) -> Result<()> {
-    let config = Config::load(config_path)?.live(live);
+pub async fn run(config: Config) -> Result<()> {
     if config.dry_run {
         tracing::info!(
             "DRY RUN: watching {} and logging the quotes we would place. No orders are sent.",
@@ -46,7 +44,7 @@ pub async fn run(config_path: &Path, live: bool) -> Result<()> {
     // Bullet first: it takes a second to connect, and Binance ticks queued
     // meanwhile would show up as fake queueing delay.
     let bullet = bullet::connect(&config, bus.clone()).await?;
-    binance::connect(&config.binance_symbol, bus.clone());
+    binance::connect(&config.binance_symbol, bus.clone(), config.feed_core);
     spawn_timer(bus.clone());
     spawn_ctrl_c(bus.clone());
 

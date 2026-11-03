@@ -36,7 +36,7 @@ struct BookTicker {
 /// The feed gets its own OS thread with its own small async runtime, so
 /// reading the price never waits behind anything else the bot is doing (like
 /// an order request on the main runtime).
-pub fn connect(symbol: &str, bus: Bus) {
+pub fn connect(symbol: &str, bus: Bus, core: Option<usize>) {
     let url = format!(
         "wss://fstream.binance.com/ws/{}@bookTicker",
         symbol.to_lowercase()
@@ -44,6 +44,7 @@ pub fn connect(symbol: &str, bus: Bus) {
     std::thread::Builder::new()
         .name("binance-feed".into())
         .spawn(move || {
+            crate::cpu::pin_current_thread(core, "binance feed");
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()

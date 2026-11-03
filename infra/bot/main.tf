@@ -14,7 +14,7 @@ variable "zone_id" {
 variable "instance_type" {
   description = "See docs/parts/04-colocation.md for why."
   type        = string
-  default     = "c8g.large"
+  default     = "c8g.xlarge"
 }
 
 variable "my_ip" {
