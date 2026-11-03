@@ -84,7 +84,7 @@ strategies, actor registries).
 - `rust_decimal::Decimal` for every price, size and amount.
 - Position changes only from fills (`Inventory::on_fill`) or an exchange read (`adopt`), never from sending an order.
 - Money-safety code needs a test for every change: `market_maker.rs`, `strategy.rs`,
-  `inventory.rs`, `executor.rs`, `book.rs`, `fair_value.rs`, `key.rs`, and the config checks.
+  `inventory.rs`, `executor.rs`, `book.rs`, `fair_value.rs`, `key.rs`, `rate_limit.rs`, and the config checks.
   Write the failing test first.
 - `bot.toml` must ship with `dry_run = true` (a test enforces it). Never commit keys (`*.key` is ignored).
 - Keep the README's setup steps and the section above in step with the code.

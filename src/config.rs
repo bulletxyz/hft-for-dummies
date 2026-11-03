@@ -41,6 +41,8 @@ pub struct Config {
     /// Every order we place expires after this long, so if the bot dies its
     /// quotes stop being fillable. The bot refreshes them at half this age.
     pub quote_ttl_secs: u64,
+    /// Our own cap on order transactions per second (Bullet allows far more).
+    pub max_requests_per_sec: f64,
 
     /// Stop quoting for the rest of the run once we are down this much (USD, fees included).
     pub max_loss_usd: Decimal,
@@ -93,6 +95,12 @@ impl Config {
             if value <= Decimal::ZERO {
                 bail!("{name} must be greater than 0, got {value}");
             }
+        }
+        if self.max_requests_per_sec < 1.0 {
+            bail!(
+                "max_requests_per_sec must be at least 1, got {}",
+                self.max_requests_per_sec
+            );
         }
         if self.skew_bps < Decimal::ZERO {
             bail!("skew_bps can't be negative, got {}", self.skew_bps);
